@@ -40,23 +40,6 @@ typedef enum {
     
 } NodeType;
 
-// Node types for NODE_CONSTANT
-typedef enum {
-	CONST_INT,
-	CONST_FLOAT,
-    CONST_STRING
-} ConstType; 
-
-// Node values for NODE_CONSTANT
-typedef struct {
-    ConstType type;
-    union {
-        int int_val;
-        float float_val;
-        char* string_val;
-    } value;
-} ConstInfo;
-
 // Binary operators
 typedef enum {
     NODE_ADD,
@@ -98,8 +81,24 @@ typedef enum {
     NODE_INT,
     NODE_FLOAT,
     NODE_VOID,
-    NODE_UNKNOWN
+    NODE_CHAR
 } type_t;
+
+// Full type for declarations
+typedef struct full_type_t{
+    type_t type;
+    int n_pointers;
+} full_type_t;
+
+// Type that represents a number with its type
+typedef struct Value {
+    int is_constant;
+    full_type_t type;
+    // ptr is only used for constant strings and should NEVER be used otherwise
+    // since pointers are represented by integers
+    union {int i; float f; char c; void* ptr;} value;
+} Value;
+
 
 // Type for assignment
 typedef enum {
@@ -129,7 +128,7 @@ typedef struct ASTNode {
 
         // For literals/constants
         struct {
-            ConstInfo* value;
+            Value* value;
         } constant;
 
         // For array access
@@ -179,7 +178,7 @@ typedef struct ASTNode {
         // For declarations
         struct {
             struct ASTNode *name;
-            struct ASTNode *type;
+            struct full_type_t *type;
             struct ASTNode *value;
         } declaration;
 
@@ -191,7 +190,7 @@ typedef struct ASTNode {
 
         // For parameter declarations
         struct {
-            struct ASTNode *type;
+            struct full_type_t *type;
             struct ASTNode *name;
         } param_declaration;
 
@@ -232,7 +231,7 @@ typedef struct ASTNode {
 
         // For function def
         struct {
-            struct ASTNode *type;
+            struct full_type_t *type;
             char* name;
             struct ASTNode *parameters;
             struct ASTNode *body;
@@ -247,17 +246,17 @@ typedef struct ASTNode {
 
 // Function declarations for AST operations
 ASTNode* create_identifier(const char* name);
-ASTNode* create_constant(ConstInfo* const_info);
+ASTNode* create_constant(Value* value);
 ASTNode* create_array_access(ASTNode* array, ASTNode* index);
 ASTNode* create_function_call(ASTNode* function, ASTNode* args);
 ASTNode* create_un_op(ASTNode* operand, un_operator operator);
 ASTNode* create_list(ASTNode* arg, ASTNode* next, NodeType type);
-ASTNode* create_type(type_t type, int n_pointers);
+full_type_t * create_type(type_t type, int n_pointers);
 ASTNode* create_bin_op(ASTNode* left, ASTNode* right,bin_operator operator);
 ASTNode* create_assignment(ASTNode* left, ASTNode* right, assign_operator operator);
-ASTNode* create_declaration(ASTNode* name, ASTNode* full_type, ASTNode* value);
+ASTNode* create_declaration(ASTNode* name, full_type_t * full_type, ASTNode* value);
 ASTNode* create_array_declaration(ASTNode* name, ASTNode* size);
-ASTNode* create_param_declaration(ASTNode* full_type, ASTNode* name);
+ASTNode* create_param_declaration(full_type_t * full_type, ASTNode* name);
 ASTNode* create_compound_stmt(ASTNode* dec_list, ASTNode* stmt_list);
 ASTNode* create_if_stmt(ASTNode* condition, ASTNode* if_body, ASTNode* else_body);
 ASTNode* create_while_loop(ASTNode* condition, ASTNode* body);
@@ -265,9 +264,15 @@ ASTNode* create_do_while_loop(ASTNode* condition, ASTNode* body);
 ASTNode* create_for_loop(ASTNode* init, ASTNode* condition, ASTNode* effect, ASTNode* body);
 ASTNode* create_jump(NodeType type);
 ASTNode* create_return_stmt(ASTNode* value);
-ASTNode* create_function_def(ASTNode* full_type, char* name, ASTNode* parameters, ASTNode* body);
+ASTNode* create_function_def(full_type_t* full_type, char* name, ASTNode* parameters, ASTNode* body);
 
 void free_ast(ASTNode* node);
 void print_ast(ASTNode* node, int indent);
 void print_node_type(NodeType node_type);
+void print_type(full_type_t* full_type, int indent);
+
+int eval_constant(ASTNode* node);
+int type_size(full_type_t* full_type);
+
+void error_on_wrong_node(NodeType expected, NodeType actual, const char *function_name);
 #endif

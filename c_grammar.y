@@ -10,7 +10,7 @@ void yyerror(const char *s){
 	fflush(stdout);
 	printf("\n%*s\n%*s\n", column, "^", column, s);
 }
-void modify_types(ASTNode* node, ASTNode* type){
+void modify_types(ASTNode* node, full_type_t * type){
 	if (node == NULL){
 		return;
 	}
@@ -34,17 +34,18 @@ ASTNode* root = NULL;
     ASTNode* node;
     char* string;
     int token;
-	ConstInfo* const_info;
+	Value* value;
 	bin_operator bin_op;
 	un_operator unary_op;
 	assign_operator assign_op;
 	type_t type_type;
+	full_type_t* full_type;
 }
 
-%token <const_info > CONSTANT STRING_LITERAL
+%token <value> CONSTANT STRING_LITERAL
 %token <string> IDENTIFIER  
 %token <token> INC_OP DEC_OP LEFT_OP RIGHT_OP LE_OP GE_OP EQ_OP NE_OP AND_OP OR_OP
-%token <token> MUL_ASSIGN DIV_ASSIGN MOD_ASSIGN ADD_ASSIGN
+%token <token> MUL_ASSIGN DIV_ASSIGN MOD_ASSIGN ADD_ASSIGN CHAR
 %token <token> SUB_ASSIGN LEFT_ASSIGN RIGHT_ASSIGN AND_ASSIGN
 %token <token> XOR_ASSIGN OR_ASSIGN
 
@@ -75,7 +76,7 @@ ASTNode* root = NULL;
 %type <node> selection_statement iteration_statement jump_statement
 %type <node> translation_unit external_declaration
 %type <node> function_definition
-%type <node> type_name
+%type <full_type> type_name
 
 %start translation_unit
 %%
@@ -288,6 +289,8 @@ type_specifier
 		{$$ = NODE_INT;}
 	| FLOAT
 		{$$ = NODE_FLOAT;}
+	| CHAR
+		{$$ = NODE_CHAR;}
 	;
 
 declarator
@@ -314,8 +317,8 @@ parameter_list
 	;
 
 parameter_declaration
-	: type_name declarator
-		{$$ = create_param_declaration($1,$2);}
+	: type_name IDENTIFIER
+		{$$ = create_param_declaration($1,create_identifier($2));}
 	;
 
 initializer

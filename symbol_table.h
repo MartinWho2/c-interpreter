@@ -1,16 +1,10 @@
-// Enum for different variable types in the interpreter
-typedef enum {
-    TYPE_INT,
-    TYPE_FLOAT,
-    TYPE_STRING,
-} SymbolType;
-
+#include "ast.h"
 
 // Symbol table entry structure
 typedef struct SymbolEntry {
     char* name;               // Variable/function name
-    SymbolType type;          // Type of the symbol
-    void* value;              // Stored value
+    full_type_t* type;          // Type of the symbol
+    int address;              // Stored value
     struct SymbolEntry* next; // Next entry for hash collision handling
 } SymbolEntry;
 
@@ -20,10 +14,9 @@ typedef struct {
     int count;                // Number of entries
     SymbolEntry** entries;    // Array of symbol entry pointers
 } SymbolTable;
-typedef struct SymbolTablesList SymbolTablesList;
 typedef struct SymbolTablesList{
     SymbolTable* local_vars;
-    SymbolTablesList* prev;
+    struct SymbolTablesList* prev;
     bool is_new_function;
 } SymbolTablesList;
 
@@ -33,22 +26,25 @@ typedef struct {
     SymbolTablesList* symbol_tables;  // Previous scopes symbol table
 } ScopeManager;
 
-void print_type(SymbolType t);
+void print_symbol_type(full_type_t *t);
 SymbolTablesList* create_symbol_tables_list(SymbolTable* local_vars);
 SymbolTablesList* add_scope(SymbolTablesList* current, SymbolTable* new_symbol_table,bool is_new_function);
 SymbolTablesList* return_func_update_symbol_tables_list(SymbolTablesList* current);
 SymbolTablesList* exit_compound_stmt(SymbolTablesList* current);
 void free_symbol_tables_list(SymbolTablesList* current);
 ScopeManager* create_scope_manager();
+void destroy_scope_manager(ScopeManager* scope_manager);
 void return_to_prev_function(ScopeManager* scope_manager);
 void call_function(ScopeManager* scope_manager,SymbolTable* arguments);
 void enter_new_scope(ScopeManager* scope_manager);
 void exit_scope(ScopeManager* scope_manager);
 unsigned int hash(const char* key, int table_size);
 SymbolTable* create_symbol_table(int size);
-bool insert_symbol(ScopeManager* scope_manager, const char* name, SymbolType type, void* value, bool is_global);
+bool insert_symbol(ScopeManager* scope_manager, const char* name, full_type_t *type, int address, bool is_global);
 SymbolEntry* lookup_symbol(ScopeManager* scope_manager, const char* name);
 SymbolEntry* lookup_symbol_in_table(SymbolTable* table, const char* name);
 bool remove_symbol(SymbolTable* table, const char* name);
+bool update_symbol(ScopeManager* scopeManager, const char* name, int address, full_type_t *type);
 void free_symbol_table(SymbolTable* table);
-bool insert_symbol_in_table(SymbolTable* table, const char* name, SymbolType type, void* value);
+bool insert_symbol_in_table(SymbolTable* table, const char* name, full_type_t *type, int address);
+bool insert_param_in_symbol_table(ASTNode* curr_param, SymbolTable* table,int* stack_pointer);

@@ -6,16 +6,17 @@ FS			(f|F|l|L)
 
 %{
 #include <stdio.h>
+#include <string.h>
 #include "ast.h"
 #include "y.tab.h"
 
 
 void count();
-ConstInfo* parse_num(const char* text);
-ConstInfo* parse_float(const char* text);
-ConstInfo* parse_string(const char* text);
-ConstInfo* parse_float_or_int(const char* text);
-
+Value* parse_num(const char* text);
+Value* parse_float(const char* text);
+Value* parse_string(const char* text);
+Value* parse_float_or_int(const char* text);
+Value* parse_char(const char* text);
 %}
 
 %%
@@ -23,6 +24,7 @@ ConstInfo* parse_float_or_int(const char* text);
 "//" 		 	{ while (input() != '\n'); count(); }
 
 "break"			{ count(); return(BREAK); }
+"char"			{ count(); return(CHAR); }
 "continue"		{ count(); return(CONTINUE); }
 "do"			{ count(); return(DO); }
 "else"			{ count(); return(ELSE); }
@@ -36,15 +38,17 @@ ConstInfo* parse_float_or_int(const char* text);
 
 {L}({L}|{D})*		{ count(); yylval.string = strdup(yytext);return(IDENTIFIER); }
 
-0[xX]{H}+		{ count(); yylval.const_info = parse_num(yytext);return(CONSTANT); }
-0{D}+		{ count(); yylval.const_info = parse_num(yytext);return(CONSTANT); }
-{D}+		{ count(); yylval.const_info = parse_num(yytext);return(CONSTANT); }
+0[xX]{H}+		{ count(); yylval.value = parse_num(yytext);return(CONSTANT); }
+0{D}+		{ count(); yylval.value = parse_num(yytext);return(CONSTANT); }
+{D}+		{ count(); yylval.value = parse_num(yytext);return(CONSTANT); }
 
-{D}+{E}{FS}?		{ count(); yylval.const_info = parse_float_or_int(yytext);return(CONSTANT); }
-{D}*"."{D}+({E})?	{ count(); yylval.const_info = parse_float(yytext);return(CONSTANT); }
-{D}+"."{D}*({E})?	{ count();yylval.const_info = parse_float(yytext); return(CONSTANT); }
+{D}+{E}{FS}?		{ count(); yylval.value = parse_float_or_int(yytext);return(CONSTANT); }
+{D}*"."{D}+({E})?	{ count(); yylval.value = parse_float(yytext);return(CONSTANT); }
+{D}+"."{D}*({E})?	{ count();yylval.value = parse_float(yytext); return(CONSTANT); }
+'(\\.|[^\\'])'	{ count(); yylval.value = parse_char(yytext); return(CONSTANT); }
 
-\"(\\.|[^\\"])*\"	{ count(); yylval.const_info = parse_string(yytext);return(STRING_LITERAL); }
+
+\"(\\.|[^\\"])*\"	{ count(); yylval.value = parse_string(yytext);return(STRING_LITERAL); }
 
 ">>="			{ count(); return(RIGHT_ASSIGN); }
 "<<="			{ count(); return(LEFT_ASSIGN); }
@@ -148,29 +152,51 @@ ConstInfo* parse_octal(const char* s){
 	const_info->type = ConstType.CONST_INT;
 	const_info->value.int_val = strtoll(s,NULL,8);
 }*/
-ConstInfo* parse_num(const char* s){
-	ConstInfo* const_info = malloc(sizeof (ConstInfo));
-	const_info->type = CONST_INT;
-	const_info->value.int_val = strtol(s,NULL,0);
-	return const_info;
+Value* parse_num(const char* s){
+	Value* value = malloc(sizeof (Value));
+	full_type_t full_type = {NODE_INT,0};
+	value->type = full_type;
+	value->value.i = strtol(s,NULL,0);
+	value->is_constant = 1;
+	return value;
 }
-ConstInfo* parse_float(const char* s){
-	ConstInfo* const_info = malloc(sizeof (ConstInfo));
-	const_info->type = CONST_FLOAT;
-	const_info->value.float_val = strtof(s,NULL);
-	return const_info;
+Value* parse_float(const char* s){
+	Value* value = malloc(sizeof (Value));
+	full_type_t full_type = {NODE_FLOAT,0};
+	value->type = full_type;
+	value->value.f = strtof(s,NULL);
+	value->is_constant = 1;
+	return value;
 }
-ConstInfo* parse_float_or_int(const char* s){
+Value* parse_float_or_int(const char* s){
 	if (strchr(s, 'f') != NULL){
 		return parse_float(s);
 	}
 	return parse_num(s);
 }
-ConstInfo* parse_string(const char* s){
-	ConstInfo* const_info = malloc(sizeof (ConstInfo));
-	const_info->type = CONST_STRING;
-	const_info->value.string_val = strdup(s);
-	return const_info;
+Value* parse_string(const char* s){
+	Value* value = malloc(sizeof (Value));
+	full_type_t full_type = {NODE_CHAR,1};
+	value->type = full_type;
+	value->value.ptr = strdup(s);
+	value->is_constant = 1;
+	return value;
+}
+
+Value* parse_char(const char* s){
+	Value* value = malloc(sizeof (Value));
+	full_type_t full_type = {NODE_CHAR,0};
+	value->type = full_type;
+	if (s[1] == '\\'){
+		switch(s[2]){
+			case 'n': value->value.c = '\n'; break;
+			case 't': value->value.c = '\t'; break;
+		}
+	}else{
+		value->value.c = s[1];
+
+	}
+	return value;
 }
 
 int check_type()

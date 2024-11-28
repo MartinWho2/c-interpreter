@@ -1,0 +1,71 @@
+#include "memory_manager.h"
+#include <stdlib.h>
+#include <stdio.h>
+
+#define STACK_SIZE 100000
+
+FrameList * create_frame_list(int new_frame_ptr){
+    FrameList * frame_list = malloc(sizeof(FrameList));
+    frame_list->current_frame_pointer = new_frame_ptr;
+    frame_list->last_frames = NULL;
+    return frame_list;
+}
+FrameList * add_new_frame_list(FrameList* frame_list, int new_frame_ptr){
+    FrameList * new_frame_list = create_frame_list(new_frame_ptr);
+    new_frame_list->last_frames = frame_list;
+    return new_frame_list;
+}
+FrameList * return_to_last_frame(FrameList* frame_list){
+    FrameList * new_frame = frame_list->last_frames;
+    free(frame_list);
+    return new_frame;
+}
+void destroy_frame_list(FrameList* frame_list){
+    while (frame_list != NULL){
+        frame_list = return_to_last_frame(frame_list);
+    }
+}
+
+MemoryManager * create_memory_manager(){
+    MemoryManager * memory_manager = malloc(sizeof(MemoryManager));
+    memory_manager->stack_pointer = 0;
+    memory_manager->frame_list = create_frame_list(0);
+    void* stack_memory = malloc(STACK_SIZE);
+    memory_manager->base_of_stack = stack_memory;
+    memory_manager->size_memory = STACK_SIZE;
+    return memory_manager;
+}
+void destroy_memory_manager(MemoryManager* memory_manager){
+    destroy_frame_list(memory_manager->frame_list);
+    // Free all stack memory of interpreted program
+    fprintf(stderr,"Warning all memory of the program will been freed now.\n");
+    free(memory_manager->base_of_stack);
+    free(memory_manager);
+}
+
+
+
+int declare_new_variable(MemoryManager * memory_manager, full_type_t* full_type){
+    int size = type_size(full_type);
+    int address_for_variable = memory_manager->stack_pointer;
+    memory_manager->stack_pointer = memory_manager->stack_pointer + size;
+    if (memory_manager->stack_pointer >= memory_manager->size_memory){
+        memory_manager->size_memory *= 2;
+        void* new_base = realloc(memory_manager->base_of_stack,memory_manager->size_memory);
+        if (new_base == NULL){
+            fprintf(stderr,"[Error] in allocating a bigger stack for your program");
+            destroy_memory_manager(memory_manager);
+            exit(1);
+        }
+        memory_manager->base_of_stack = new_base;
+    }
+    return address_for_variable;
+}
+
+void* get_raw_ptr_for_var(MemoryManager * memoryManager, int variable_address){
+    if (variable_address > memoryManager->size_memory){
+        fprintf(stderr,"[ERROR] Tried to get the memory of a value out of stack memory ?");
+        exit(1);
+    }
+    return (variable_address) + memoryManager->base_of_stack;
+}

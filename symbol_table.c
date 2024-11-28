@@ -3,19 +3,6 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include "symbol_table.h"
-void print_type(SymbolType t){
-    switch (t) {
-        case TYPE_INT:
-            fprintf(stderr,"INT");
-            return;
-        case TYPE_FLOAT:
-            fprintf(stderr,"FLOAT");
-            return;
-        case TYPE_STRING:
-            fprintf(stderr,"STRING");
-            return;
-    }
-}
 
 // Creates a symbolTables linked list by passing the new symbol table
 SymbolTablesList* create_symbol_tables_list(SymbolTable* local_vars){
@@ -119,37 +106,37 @@ SymbolTable* create_symbol_table(int size) {
     return table;
 }
 // update an already existing variable within the scope
-bool update_symbol(ScopeManager* scopeManager, const char* name, void* value, SymbolType type){
+bool update_symbol(ScopeManager* scopeManager, const char* name, int address, full_type_t *type){
     SymbolEntry* existing_entry = lookup_symbol(scopeManager,name);
     if (existing_entry == NULL){
         fprintf(stderr,"ERROR Tried to update symbol %s which does not exist\n",name);
         return false;
     }
-    if (existing_entry->type != type){
+    if (existing_entry->type->type != type->type || existing_entry->type->n_pointers != type->n_pointers){
         fprintf(stderr, "ERROR Tried to assign type ");
-        print_type(type);
+        print_type(type,1);
         fprintf(stderr, " to %s which is of type ",name);
-        print_type(existing_entry->type);
+        print_type(existing_entry->type,1);
         exit(1);
     }
-    existing_entry->value = value;
+    existing_entry->address = address;
     return true;
 }
 
 // Insert a symbol into the table via the scope manager (new variable AND NOT AN EXISTING ONE)
-bool insert_symbol(ScopeManager* scope_manager, const char* name, SymbolType type, 
-                   void* value, bool is_global) {
+bool insert_symbol(ScopeManager* scope_manager, const char* name, full_type_t *type,
+                   int address, bool is_global) {
     SymbolTable* table;
     if (is_global){
         table = scope_manager->global_vars;
     }else{
         table = scope_manager->symbol_tables->local_vars;
     }
-    return insert_symbol_in_table(table,name,type,value);
+    return insert_symbol_in_table(table,name,type,address);
 }
 
-bool insert_symbol_in_table(SymbolTable* table, const char* name, SymbolType type,
-                            void* value){
+bool insert_symbol_in_table(SymbolTable* table, const char* name, full_type_t *type,
+                            int address){
     // Check if table is getting too full (optional load factor check)
     if (table->count >= table->size * 0.75) {
         // TODO: Implement resizing mechanism
@@ -174,13 +161,27 @@ bool insert_symbol_in_table(SymbolTable* table, const char* name, SymbolType typ
     SymbolEntry* new_entry = malloc(sizeof(SymbolEntry));
     new_entry->name = strdup(name);
     new_entry->type = type;
-    new_entry->value = value;
+    new_entry->address = address;
 
     // Handle hash collision with separate chaining
     new_entry->next = table->entries[index];
     table->entries[index] = new_entry;
 
     table->count++;
+    return true;
+}
+
+bool insert_param_in_symbol_table(ASTNode* curr_param, SymbolTable* table,int* stack_pointer){
+    error_on_wrong_node(NODE_PARAM_DECLARATION,curr_param->type,"param of function definition");
+    full_type_t * full_type = curr_param->data.param_declaration.type;
+    ASTNode * identifier = curr_param->data.param_declaration.name;
+    error_on_wrong_node(NODE_IDENTIFIER,identifier->type,"identifier for argument");
+    const char* name = identifier->data.identifier.name;
+    bool result = insert_symbol_in_table(table,name,full_type,*stack_pointer);
+    if (!result){
+        exit(1);
+    }
+    *stack_pointer = (*stack_pointer + type_size(full_type));
     return true;
 }
 
@@ -270,38 +271,61 @@ void free_symbol_table(SymbolTable* table) {
 }
 
 
-int main(){
+void insert_arguments_from_func_call(SymbolTable* table, ASTNode* func_def, ASTNode* func_call){
+    error_on_wrong_node(NODE_FUNCTION_DEF,func_def->type,"insert_arg_from_func_call");
+    error_on_wrong_node(NODE_FUNCTION_CALL,func_call->type,"insert_arg_from_func_call");
+    ASTNode* params = func_def->data.function_def.parameters;
+    ASTNode* args = func_call->data.function_call.args;
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+int fake_main(){
     ScopeManager* scope_manager = create_scope_manager();
     call_function(scope_manager, create_symbol_table(100));
 
     char* hello = malloc(10);
     strcpy(hello,"hello");
     int hello_var = 17;
-    insert_symbol(scope_manager,hello,TYPE_INT,&hello_var,true);
+    full_type_t * int_type = create_type(NODE_INT,0);
+    full_type_t * int2_type = create_type(NODE_INT,0);
+    full_type_t * float_type = create_type(NODE_FLOAT,0);
+
+    insert_symbol(scope_manager,hello,int_type,hello_var,true);
 
     int hello_var2 = 18;
     char* hello2 = malloc(10);
     strcpy(hello2,"hello2");
-    insert_symbol(scope_manager,hello2,TYPE_INT,&hello_var2,false);
+    insert_symbol(scope_manager,hello2,int2_type,hello_var2,false);
 
     enter_new_scope(scope_manager);
     char* hello3 = malloc(10);
     strcpy(hello3,"hello4");
     int hello_var3 = 19;
-    insert_symbol(scope_manager,hello3,TYPE_INT,&hello_var3,false);
+    insert_symbol(scope_manager,hello3,int_type,hello_var3,false);
 
     SymbolTable *args = create_symbol_table(100);
     float hello_arg = 12.03f;
-    insert_symbol_in_table(args,hello,TYPE_FLOAT,&hello_arg);
-    insert_symbol_in_table(args,hello2,TYPE_INT,&hello_var2);
+    insert_symbol_in_table(args,hello,float_type,hello_arg);
+    insert_symbol_in_table(args,hello2,int2_type,hello_var2);
     call_function(scope_manager,args);
 
-    res = lookup_symbol(scope_manager,hello);
+    SymbolEntry * res = lookup_symbol(scope_manager,hello);
     printf("Function call\n");
-    printf("%s = %f\n",res->name,*(float*)(res->value));
 
     res = lookup_symbol(scope_manager,hello2);
-    printf("%s = %d\n",res->name,*(int*)(res->value));
 
     res = lookup_symbol(scope_manager,hello3);
     printf("%p\n",res);
@@ -309,14 +333,14 @@ int main(){
     return_to_prev_function(scope_manager);
     printf("Now back to main scope\n");
     res = lookup_symbol(scope_manager,hello);
-    printf("%s = %d\n",res->name,*(int*)(res->value));
+    /*printf("%s = %d\n",res->name,*(int*)(res->value));
 
     res = lookup_symbol(scope_manager,hello2);
     printf("%s = %d\n",res->name,*(int*)(res->value));
 
     res = lookup_symbol(scope_manager,hello3);
     printf("%s = %d\n",res->name,*(int*)(res->value));
-    update_symbol(scope_manager,hello ,&hello_var3,TYPE_INT);
+    update_symbol(scope_manager,hello ,hello_var3,int_type);
     printf("Now hello should be = %d\n",hello_var3);
     res = lookup_symbol(scope_manager,hello);
     printf("%s = %d\n",res->name,*(int*)(res->value));
@@ -332,5 +356,5 @@ int main(){
     res = lookup_symbol(scope_manager,hello2);
     printf("%p\n",res);
 
-    destroy_scope_manager(scope_manager);
+    destroy_scope_manager(scope_manager);*/
 }

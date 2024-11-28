@@ -10,10 +10,10 @@ ASTNode* create_identifier(const char* name) {
     return node;
 }
 
-ASTNode* create_constant(ConstInfo* const_info) {
+ASTNode* create_constant(Value* value) {
     ASTNode* node = malloc(sizeof(ASTNode));
     node->type = NODE_CONSTANT;
-    node->data.constant.value = const_info;
+    node->data.constant.value = value;
     return node;
 }
 
@@ -50,12 +50,11 @@ ASTNode* create_list(ASTNode* arg, ASTNode* next,NodeType type) {
     return node;
 }
 
-ASTNode* create_type(type_t t, int n_pointers){
-    ASTNode* node = malloc(sizeof(ASTNode));
-    node->type = NODE_TYPE;
-    node->data.full_type.type = t;
-    node->data.full_type.n_pointers = n_pointers;
-    return node;
+full_type_t * create_type(type_t t, int n_pointers){
+    full_type_t * full_type = malloc(sizeof(full_type_t));
+    full_type->type = t;
+    full_type->n_pointers = n_pointers;
+    return full_type;
 }
 
 ASTNode* create_bin_op(ASTNode* left, ASTNode* right,bin_operator operator) {
@@ -77,7 +76,7 @@ ASTNode* create_assignment(ASTNode* left, ASTNode* right, assign_operator operat
 }
 
 
-ASTNode* create_declaration(ASTNode* name,ASTNode* full_type, ASTNode* value) {
+ASTNode* create_declaration(ASTNode* name,full_type_t * full_type, ASTNode* value) {
     ASTNode* node = malloc(sizeof(ASTNode));
     node->type = NODE_DECLARATION;
     node->data.declaration.name = name;
@@ -95,7 +94,7 @@ ASTNode* create_array_declaration(ASTNode* name, ASTNode* size){
 
 }
 
-ASTNode* create_param_declaration(ASTNode* full_type, ASTNode* name){
+ASTNode* create_param_declaration(full_type_t * full_type, ASTNode* name){
     ASTNode* node = malloc(sizeof(ASTNode));
     node->type = NODE_PARAM_DECLARATION;
     node->data.param_declaration.type = full_type;
@@ -161,7 +160,7 @@ ASTNode* create_return_stmt(ASTNode* value) {
 }
 
 
-ASTNode* create_function_def(ASTNode* full_type, char* name, ASTNode* parameters, ASTNode* body){
+ASTNode* create_function_def(full_type_t* full_type, char* name, ASTNode* parameters, ASTNode* body){
     ASTNode* node = malloc(sizeof(ASTNode));
     node->type = NODE_FUNCTION_DEF;
     node->data.function_def.type = full_type;
@@ -177,7 +176,15 @@ static void print_indent(int indent) {
         printf("  ");
     }
 }
-
+void print_type(full_type_t* full_type, int indent){
+    print_indent(indent);
+    switch (full_type->type) {
+        case NODE_INT: printf("int"); break;
+        case NODE_FLOAT: printf("float"); break;
+        case NODE_VOID: printf("void"); break;
+    }
+    printf(" (pointers: %d)\n", full_type->n_pointers);
+}
 // Recursive function to print the AST
 void print_ast(ASTNode* node, int indent) {
     if (node == NULL) {
@@ -194,16 +201,23 @@ void print_ast(ASTNode* node, int indent) {
 
         case NODE_CONSTANT:
             print_indent(indent);
-            switch (node->data.constant.value->type) {
-                case CONST_INT:
-                    printf("Constant (int): %d\n", node->data.constant.value->value.int_val);
-                    break;
-                case CONST_FLOAT:
-                    printf("Constant (float): %f\n", node->data.constant.value->value.float_val);
-                    break;
-                case CONST_STRING:
-                    printf("Constant (string): %s\n", node->data.constant.value->value.string_val);
-                    break;
+            Value* v = node->data.constant.value;
+            if (v->type.n_pointers > 0){
+                printf("Constant (string): %s\n", (char*)v->value.ptr);
+            }else{
+                switch (v->type.type) {
+                    case NODE_INT:
+                        printf("Constant (int): %d\n", v->value.i);
+                        break;
+                    case NODE_FLOAT:
+                        printf("Constant (float): %f\n", v->value.f);
+                        break;
+                    case NODE_VOID:
+                        break;
+                    case NODE_CHAR:
+                        printf("Constant (char): %c\n",v->value.c);
+                        break;
+                }
             }
             break;
         case NODE_ARRAY_ACCESS:
@@ -266,18 +280,7 @@ void print_ast(ASTNode* node, int indent) {
             print_ast(node->data.arg_list.arg, indent + 1);
             print_ast(node->data.arg_list.next, indent);
             break;
-        
-        case NODE_TYPE:
-            print_indent(indent);
-            printf("Type: ");
-            switch (node->data.full_type.type) {
-                case NODE_INT: printf("int"); break;
-                case NODE_FLOAT: printf("float"); break;
-                case NODE_VOID: printf("void"); break;
-                case NODE_UNKNOWN: printf("unknown"); break;
-            }
-            printf(" (pointers: %d)\n", node->data.full_type.n_pointers);
-            break;
+
 
         case NODE_BINARY_OP:
             print_indent(indent);
@@ -300,8 +303,10 @@ void print_ast(ASTNode* node, int indent) {
                 case NODE_IS_EQ: printf("IS EQUAL\n"); break;
                 case NODE_NOT_EQ: printf("NOT EQUAL\n"); break;
                 case NODE_GT: printf("GREATER THAN\n"); break;
-                
-                // Add other binary operators as needed
+                case NODE_GEQ: printf("GREATER OR EQUAL THAN\n");break;
+                case NODE_LEQ:printf("LESS OR EQUAL THAN\n");break;
+                case NODE_LT:printf("LESS THAN\n");break;
+                    // Add other binary operators as needed
                 default: printf("UNKNOWN\n"); break;
             }
             print_indent(indent + 1);
@@ -347,7 +352,7 @@ void print_ast(ASTNode* node, int indent) {
             print_ast(node->data.declaration.name, indent + 2);
             print_indent(indent + 1);
             printf("Type:\n");
-            print_ast(node->data.declaration.type, indent + 2);
+            print_type(node->data.declaration.type, indent + 2);
             if (node->data.declaration.value) {
                 print_indent(indent + 1);
                 printf("Value:\n");
@@ -372,7 +377,7 @@ void print_ast(ASTNode* node, int indent) {
             printf("Parameter Declaration:\n");
             print_indent(indent + 1);
             printf("Type:\n");
-            print_ast(node->data.param_declaration.type, indent + 2);
+            print_type(node->data.param_declaration.type, indent + 2);
             print_indent(indent + 1);
             printf("Name:\n");
             print_ast(node->data.param_declaration.name, indent + 2);
@@ -460,7 +465,7 @@ void print_ast(ASTNode* node, int indent) {
             printf("Name: %s\n", node->data.function_def.name);
             print_indent(indent + 1);
             printf("Return Type:\n");
-            print_ast(node->data.function_def.type, indent + 2);
+            print_type(node->data.function_def.type, indent + 2);
             if (node->data.function_def.parameters) {
                 print_indent(indent + 1);
                 printf("Parameters:\n");
@@ -563,4 +568,93 @@ void print_node_type(NodeType node_type){
             printf("Function Definition\n");
             break;
     }
+}
+
+int eval_constant(ASTNode *constant_value) {
+    if (constant_value == NULL) {
+        return 0;
+    }
+    switch (constant_value->type) {
+
+        case NODE_IDENTIFIER:
+            return 0;
+        case NODE_CONSTANT:
+            break;
+        case NODE_ARRAY_ACCESS:
+            break;
+        case NODE_FUNCTION_CALL:
+            break;
+        case NODE_UNARY_OP:
+            break;
+        case NODE_ID_LIST:
+            break;
+        case NODE_PARAM_LIST:
+            break;
+        case NODE_STMT_LIST:
+            break;
+        case NODE_DECLARATION_LIST:
+            break;
+        case NODE_DECLARATOR_LIST:
+            break;
+        case NODE_INIT_LIST:
+            break;
+        case NODE_ARG_LIST:
+            break;
+        case NODE_TOP_LEVEL_LIST:
+            break;
+        case NODE_TYPE:
+            break;
+        case NODE_BINARY_OP:
+            break;
+        case NODE_ASSIGNMENT:
+            break;
+        case NODE_DECLARATION:
+            break;
+        case NODE_ARRAY_DECLARATION:
+            break;
+        case NODE_PARAM_DECLARATION:
+            break;
+        case NODE_COMPOUND_STMT:
+            break;
+        case NODE_IF:
+            break;
+        case NODE_WHILE:
+            break;
+        case NODE_DO_WHILE:
+            break;
+        case NODE_FOR:
+            break;
+        case NODE_CONTINUE:
+            break;
+        case NODE_BREAK:
+            break;
+        case NODE_RETURN:
+            break;
+        case NODE_FUNCTION_DEF:
+            break;
+    }
+}
+int type_size(full_type_t* full_type){
+    if (full_type->n_pointers > 0){
+        return 4;
+    }
+    switch (full_type->type) {
+        case NODE_INT:
+            return 4;
+        case NODE_FLOAT:
+            return 4;
+        case NODE_VOID:
+            return 0;
+        case NODE_CHAR:
+            return 1;
+    }
+}
+void error_on_wrong_node(NodeType expected, NodeType actual, const char *function_name) {
+    if (expected == actual) return;
+    fprintf(stderr, "%s called with wrong node ( expected ", function_name);
+    print_node_type(expected);
+    fprintf(stderr, ", actual ");
+    print_node_type(actual);
+    fprintf(stderr, "\n");
+    exit(1);
 }
