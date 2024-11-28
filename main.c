@@ -79,13 +79,11 @@ int count_num_alloc(ASTNode *node) {
         case NODE_ARRAY_ACCESS:
         case NODE_FUNCTION_CALL:
         case NODE_UNARY_OP:
-        case NODE_ID_LIST:
         case NODE_STMT_LIST:
         case NODE_PARAM_LIST:
         case NODE_INIT_LIST:
         case NODE_ARG_LIST:
         case NODE_TOP_LEVEL_LIST:
-        case NODE_TYPE:
         case NODE_BINARY_OP:
         case NODE_CONTINUE:
         case NODE_BREAK:
@@ -99,5 +97,23 @@ int count_num_alloc(ASTNode *node) {
                    count_num_alloc(node->data.arg_list.arg);
         case NODE_DECLARATION:
             return count_num_alloc(node->data.declaration.value);
+        case NODE_ASSIGNMENT:
+            break;
+        case NODE_ARRAY_DECLARATION:
+            break;
+        case NODE_PARAM_DECLARATION:
+            break;
+        case NODE_COMPOUND_STMT:
+            break;
+        case NODE_IF:
+            break;
+        case NODE_WHILE:
+            break;
+        case NODE_DO_WHILE:
+            break;
+        case NODE_FOR:
+            break;
+        case NODE_RETURN:
+            break;
     }
 }

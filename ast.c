@@ -179,9 +179,10 @@ static void print_indent(int indent) {
 void print_type(full_type_t* full_type, int indent){
     print_indent(indent);
     switch (full_type->type) {
-        case NODE_INT: printf("int"); break;
+        case NODE_INT:   printf("int"); break;
         case NODE_FLOAT: printf("float"); break;
-        case NODE_VOID: printf("void"); break;
+        case NODE_VOID:  printf("void"); break;
+        case NODE_CHAR:  printf("char");break;
     }
     printf(" (pointers: %d)\n", full_type->n_pointers);
 }
@@ -267,7 +268,6 @@ void print_ast(ASTNode* node, int indent) {
             print_ast(node->data.unary.operand, indent + 2);
             break;
 
-        case NODE_ID_LIST:
         case NODE_PARAM_LIST:
         case NODE_STMT_LIST:
         case NODE_DECLARATOR_LIST:
@@ -498,9 +498,6 @@ void print_node_type(NodeType node_type){
         case NODE_UNARY_OP:
             printf("Unary Operation\n");
             break;
-        case NODE_ID_LIST:
-            printf("ID List\n");
-            break;
         case NODE_PARAM_LIST:
             printf("Param List\n");
             break;
@@ -521,9 +518,6 @@ void print_node_type(NodeType node_type){
             break;
         case NODE_TOP_LEVEL_LIST:
             printf("Top Level List\n");
-            break;
-        case NODE_TYPE:
-            printf("Type\n");
             break;
         case NODE_BINARY_OP:
             printf("Binary Operation\n");
@@ -586,8 +580,6 @@ int eval_constant(ASTNode *constant_value) {
             break;
         case NODE_UNARY_OP:
             break;
-        case NODE_ID_LIST:
-            break;
         case NODE_PARAM_LIST:
             break;
         case NODE_STMT_LIST:
@@ -601,8 +593,6 @@ int eval_constant(ASTNode *constant_value) {
         case NODE_ARG_LIST:
             break;
         case NODE_TOP_LEVEL_LIST:
-            break;
-        case NODE_TYPE:
             break;
         case NODE_BINARY_OP:
             break;
@@ -641,12 +631,12 @@ int type_size(full_type_t* full_type){
     switch (full_type->type) {
         case NODE_INT:
             return 4;
+        case NODE_CHAR:
+            return 1;
         case NODE_FLOAT:
             return 4;
         case NODE_VOID:
             return 0;
-        case NODE_CHAR:
-            return 1;
     }
 }
 void error_on_wrong_node(NodeType expected, NodeType actual, const char *function_name) {

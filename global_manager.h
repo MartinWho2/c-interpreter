@@ -11,5 +11,5 @@ typedef struct GlobalManager {
 
 
 GlobalManager * create_global_manager(ASTNode* root);
-int eval_expr(GlobalManager * global_manager, ASTNode* expr);
+ValueOrAddress eval_expr(GlobalManager * global_manager, ASTNode* expr);
 SymbolTable * construct_symbol_table_for_function_call(ASTNode* function_def, MemoryManager* memory_manager);

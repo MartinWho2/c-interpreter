@@ -203,8 +203,10 @@ SymbolEntry* lookup_symbol(ScopeManager* scope_manager, const char* name){
         symbol_tables = symbol_tables->prev;
     }
     // Since we didn't find it in local variables, look into globals
-    return lookup_symbol_in_table(scope_manager->global_vars,name);
-
+    SymbolEntry * last_try = lookup_symbol_in_table(scope_manager->global_vars,name);
+    if (last_try != NULL) return last_try;
+    fprintf(stderr, "[ERROR] Variable %s not found in scope.",name);
+    exit(1);
 }
 
 

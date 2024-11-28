@@ -11,7 +11,6 @@ typedef enum {
     NODE_FUNCTION_CALL,
     NODE_UNARY_OP,
 
-    NODE_ID_LIST,
     NODE_PARAM_LIST,
     NODE_STMT_LIST,
     NODE_DECLARATION_LIST,
@@ -20,7 +19,6 @@ typedef enum {
     NODE_ARG_LIST,
     NODE_TOP_LEVEL_LIST,
 
-    NODE_TYPE,
     NODE_BINARY_OP,
     NODE_ASSIGNMENT,
     NODE_DECLARATION,
@@ -99,6 +97,11 @@ typedef struct Value {
     union {int i; float f; char c; void* ptr;} value;
 } Value;
 
+typedef struct ValueOrAddress {
+    Value value;
+    int has_address;
+    int address;
+} ValueOrAddress;
 
 // Type for assignment
 typedef enum {

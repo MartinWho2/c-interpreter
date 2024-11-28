@@ -14,6 +14,7 @@ int main() {
   float average;
   char a = 'c';
   char* ab = "hello";
+  studentNumber = count == 3;
   count = 4;
   sum = 0;
   for (int  i = 0; i < count; i++) {
@@ -24,4 +25,5 @@ int main() {
       printf("hello", average);
     }
   }
+  i = 12;
 }
