@@ -63,7 +63,7 @@ int declare_new_variable(MemoryManager * memory_manager, full_type_t* full_type)
 }
 
 void* get_raw_ptr_for_var(MemoryManager * memoryManager, int variable_address){
-    if (variable_address > memoryManager->size_memory){
+    if (variable_address > memoryManager->size_memory || variable_address < 0){
         fprintf(stderr,"[ERROR] Tried to get the memory of a value out of stack memory ?");
         exit(1);
     }

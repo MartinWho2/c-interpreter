@@ -648,3 +648,8 @@ void error_on_wrong_node(NodeType expected, NodeType actual, const char *functio
     fprintf(stderr, "\n");
     exit(1);
 }
+
+void error_out(ASTNode* current_node,const char* error_message){
+    fprintf(stderr,"[ERROR] %s (l. %d)\n",error_message, current_node->line_number);
+    exit(1);
+}

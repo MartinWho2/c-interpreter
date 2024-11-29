@@ -73,11 +73,31 @@ ValueOrAddress eval_unary_op(GlobalManager *global_manager, ASTNode* unary_op){
         case NODE_PLUS:
             return eval_expr(global_manager,unary_op->data.unary.operand);
         case NODE_MINUS:
-            res = eval_expr(global_manager,unary_op->data.unary.operand);
+            ValueOrAddress res3 = eval_expr(global_manager,unary_op->data.unary.operand);
             // TODO continue here
-            new_value = (Value){res.value.is_constant,res.value.type, };
-            break;
+            new_value = (Value){res3.value.is_constant,res3.value.type,0};
+            if (res3.value.type.n_pointers > 0){
+                error_out(unary_op, "Cannot take the negative value of a pointer");
+            }
+            switch (res3.value.type.type) {
+                case NODE_INT:res3.value.value.i *= -1;break;
+                case NODE_FLOAT:res3.value.value.f *= -1.0f;break;
+                case NODE_CHAR:res3.value.value.c *= (char)(-1);break;
+                case NODE_VOID:error_out(unary_op,"Tried to take the negative of void ??");break;
+            }
+            return (ValueOrAddress) {new_value,0,-1};
         case NODE_INC_POST:
+            ValueOrAddress res4 = eval_expr(global_manager,unary_op->data.unary.operand);
+            if (!res4.has_address) error_out(unary_op,"Operand requires the value to be addressable");
+            raw_ptr = get_raw_ptr_for_var(global_manager->memory_manager,res4.address);
+            switch (res4.value.type.type) {
+                case NODE_INT:*(int*)(raw_ptr) += 1;break;
+                case NODE_FLOAT:*(float*)(raw_ptr) += 1.0f;break;
+                case NODE_VOID:error_out(unary_op,"Tried to increment void ??");break;
+                case NODE_CHAR:*(char*)raw_ptr += (char)1;break;
+            }
+            new_value = (Value){0,res4.value.type,0};
+
             break;
         case NODE_DEC_POST:
             break;

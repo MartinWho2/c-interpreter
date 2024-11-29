@@ -278,4 +278,5 @@ int eval_constant(ASTNode* node);
 int type_size(full_type_t* full_type);
 
 void error_on_wrong_node(NodeType expected, NodeType actual, const char *function_name);
+void error_out(ASTNode* current_node, const char* error_message);
 #endif
