@@ -97,10 +97,10 @@ postfix_expression
 		{$$ = $1;}
 	| postfix_expression '[' assignment_expression ']'
 		{$$ = create_array_access($1, $3);}
-	| postfix_expression '(' ')'
-		{$$ = create_function_call($1, NULL);}
-	| postfix_expression '(' argument_expression_list ')'
-		{$$ = create_function_call($1, $3);}
+	| IDENTIFIER '(' ')'
+		{$$ = create_function_call(create_identifier($1), NULL);}
+	| IDENTIFIER '(' argument_expression_list ')'
+		{$$ = create_function_call(create_identifier($1), $3);}
 	| postfix_expression INC_OP
 		{$$ = create_un_op($1,NODE_INC_POST);}
 	| postfix_expression DEC_OP

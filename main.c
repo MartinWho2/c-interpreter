@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdbool.h>
-#include "symbol_table.h"
+#include "global_manager.h"
 #include "ast.h"
 #include "y.tab.h"
 
@@ -28,7 +28,8 @@ int main(int argc, char *argv[]) {
     if (result == 0) {
         printf("\nParsing successful! Here's the AST:\n");
         print_ast(root, 0);
-
+        GlobalManager * global_manager = create_global_manager(root);
+        execute_code(global_manager);
         // Here you can:
         // 1. Generate code from the AST
         // generate_code(root);
@@ -52,68 +53,4 @@ bool is_declaration_array(ASTNode *declaration) {
     error_on_wrong_node(NODE_DECLARATION, declaration->type, "is_declaration_array");
 
     return declaration->data.declaration.name->type == NODE_ARRAY_ACCESS;
-}
-
-
-int array_size(ASTNode *array) {
-    error_on_wrong_node(NODE_ARRAY_ACCESS, array->type, "array_size");
-
-    return 0;
-}
-/*
-struct {
-    struct full_type_t *type;
-    char* name;
-    struct ASTNode *parameters;
-    struct ASTNode *body;
-} function_def
- */
-
-
-int count_num_alloc(ASTNode *node) {
-    if (node == NULL)
-        return 0;
-    switch (node->type) {
-        case NODE_IDENTIFIER:
-        case NODE_CONSTANT:
-        case NODE_ARRAY_ACCESS:
-        case NODE_FUNCTION_CALL:
-        case NODE_UNARY_OP:
-        case NODE_STMT_LIST:
-        case NODE_PARAM_LIST:
-        case NODE_INIT_LIST:
-        case NODE_ARG_LIST:
-        case NODE_TOP_LEVEL_LIST:
-        case NODE_BINARY_OP:
-        case NODE_CONTINUE:
-        case NODE_BREAK:
-            return 0;
-        case NODE_FUNCTION_DEF:
-            return count_num_alloc(node->data.function_def.parameters) +
-                   count_num_alloc(node->data.function_def.body);
-        case NODE_DECLARATION_LIST:
-        case NODE_DECLARATOR_LIST:
-            return count_num_alloc(node->data.arg_list.arg) +
-                   count_num_alloc(node->data.arg_list.arg);
-        case NODE_DECLARATION:
-            return count_num_alloc(node->data.declaration.value);
-        case NODE_ASSIGNMENT:
-            break;
-        case NODE_ARRAY_DECLARATION:
-            break;
-        case NODE_PARAM_DECLARATION:
-            break;
-        case NODE_COMPOUND_STMT:
-            break;
-        case NODE_IF:
-            break;
-        case NODE_WHILE:
-            break;
-        case NODE_DO_WHILE:
-            break;
-        case NODE_FOR:
-            break;
-        case NODE_RETURN:
-            break;
-    }
 }

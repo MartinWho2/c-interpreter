@@ -37,13 +37,8 @@ int main(){
     arg_list = create_list(arg1,arg_list,NODE_ARG_LIST);
 
     ASTNode* func_call = create_function_call(create_identifier("main"),arg_list);
-    /*SymbolTable * args = construct_symbol_table_for_function_call(func_def,global_manager->memory_manager);
-    insert_arguments_from_func_call(global_manager,args,func_def,func_call);
-    call_function(global_manager->scope_manager,args);*/
     call_function_total(global_manager,func_def,func_call);
     declare_new_variable(global_manager,"x",(Value){1,{NODE_INT,1},.value.i=763});
-
-
 
     ASTNode * x = create_identifier("x");
     ASTNode * x_plus_plus = create_un_op(x,NODE_DEC_POST);
