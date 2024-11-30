@@ -3,7 +3,7 @@
 // Symbol table entry structure
 typedef struct SymbolEntry {
     char* name;               // Variable/function name
-    full_type_t* type;          // Type of the symbol
+    full_type_t type;          // Type of the symbol
     int address;              // Stored value
     struct SymbolEntry* next; // Next entry for hash collision handling
 } SymbolEntry;
@@ -48,3 +48,4 @@ bool update_symbol(ScopeManager* scopeManager, const char* name, int address, fu
 void free_symbol_table(SymbolTable* table);
 bool insert_symbol_in_table(SymbolTable* table, const char* name, full_type_t *type, int address);
 bool insert_param_in_symbol_table(ASTNode* curr_param, SymbolTable* table,int* stack_pointer);
+int num_fun_calls(ScopeManager* scope_manager);

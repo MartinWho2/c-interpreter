@@ -112,11 +112,11 @@ bool update_symbol(ScopeManager* scopeManager, const char* name, int address, fu
         fprintf(stderr,"ERROR Tried to update symbol %s which does not exist\n",name);
         return false;
     }
-    if (existing_entry->type->type != type->type || existing_entry->type->n_pointers != type->n_pointers){
+    if (existing_entry->type.type != type->type || existing_entry->type.n_pointers != type->n_pointers){
         fprintf(stderr, "ERROR Tried to assign type ");
-        print_type(type,1);
+        print_type(*type,1);
         fprintf(stderr, " to %s which is of type ",name);
-        print_type(existing_entry->type,1);
+        print_type((existing_entry->type),1);
         exit(1);
     }
     existing_entry->address = address;
@@ -148,11 +148,10 @@ bool insert_symbol_in_table(SymbolTable* table, const char* name, full_type_t *t
     // Check for existing symbol
     SymbolEntry* current = table->entries[index];
     while (current) {
-        fprintf(stderr,"Colllision !!\n");
+        fprintf(stderr,"Collision !!\n");
         if (strcmp(current->name, name) == 0) {
             printf("ERROR, symbol %s already exists. IT SHOULD NOT BE THE CASE.\n", name);
-            // Symbol already exists, update if needed
-            return false;
+            exit(1);
         }
         current = current->next;
     }
@@ -160,7 +159,7 @@ bool insert_symbol_in_table(SymbolTable* table, const char* name, full_type_t *t
     // Create new symbol entry
     SymbolEntry* new_entry = malloc(sizeof(SymbolEntry));
     new_entry->name = strdup(name);
-    new_entry->type = type;
+    new_entry->type = *type;
     new_entry->address = address;
 
     // Handle hash collision with separate chaining
@@ -255,6 +254,16 @@ bool remove_symbol(SymbolTable* table, const char* name) {
     return false; // Symbol not found
 }
 
+int num_fun_calls(ScopeManager* scope_manager){
+    SymbolTablesList* symbolTablesList = scope_manager->symbol_tables;
+    int calls = 0;
+    while (symbolTablesList != NULL){
+        calls++;
+        symbolTablesList = symbolTablesList->prev;
+    }
+    return calls;
+}
+
 // Free the entire symbol table
 void free_symbol_table(SymbolTable* table) {
     for (int i = 0; i < table->size; i++) {
@@ -273,13 +282,6 @@ void free_symbol_table(SymbolTable* table) {
 }
 
 
-void insert_arguments_from_func_call(SymbolTable* table, ASTNode* func_def, ASTNode* func_call){
-    error_on_wrong_node(NODE_FUNCTION_DEF,func_def->type,"insert_arg_from_func_call");
-    error_on_wrong_node(NODE_FUNCTION_CALL,func_call->type,"insert_arg_from_func_call");
-    ASTNode* params = func_def->data.function_def.parameters;
-    ASTNode* args = func_call->data.function_call.args;
-
-}
 
 
 

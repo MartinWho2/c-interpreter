@@ -272,9 +272,10 @@ ASTNode* create_function_def(full_type_t* full_type, char* name, ASTNode* parame
 void free_ast(ASTNode* node);
 void print_ast(ASTNode* node, int indent);
 void print_node_type(NodeType node_type);
-void print_type(full_type_t* full_type, int indent);
+void print_type(full_type_t full_type, int indent);
+void print_val_or_addr(ValueOrAddress v);
+void print_value(Value v);
 
-int eval_constant(ASTNode* node);
 int type_size(full_type_t* full_type);
 
 void error_on_wrong_node(NodeType expected, NodeType actual, const char *function_name);

@@ -17,6 +17,7 @@ FrameList * return_to_last_frame(FrameList* frame_list);
 void destroy_frame_list(FrameList* frame_list);
 MemoryManager * create_memory_manager();
 void destroy_memory_manager(MemoryManager* memory_manager);
+void set_stack_pointer_to_curr_frame_pointer(MemoryManager * memory_manager);
 
-int declare_new_variable(MemoryManager * memory_manager, full_type_t* full_type);
+int declare_new_variable_in_memory(MemoryManager * memory_manager, full_type_t* full_type);
 void* get_raw_ptr_for_var(MemoryManager * memoryManager, int variable_address);

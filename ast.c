@@ -176,15 +176,15 @@ static void print_indent(int indent) {
         printf("  ");
     }
 }
-void print_type(full_type_t* full_type, int indent){
+void print_type(full_type_t full_type, int indent){
     print_indent(indent);
-    switch (full_type->type) {
+    switch (full_type.type) {
         case NODE_INT:   printf("int"); break;
         case NODE_FLOAT: printf("float"); break;
         case NODE_VOID:  printf("void"); break;
         case NODE_CHAR:  printf("char");break;
     }
-    printf(" (pointers: %d)\n", full_type->n_pointers);
+    printf(" (pointers: %d)\n", full_type.n_pointers);
 }
 // Recursive function to print the AST
 void print_ast(ASTNode* node, int indent) {
@@ -352,7 +352,7 @@ void print_ast(ASTNode* node, int indent) {
             print_ast(node->data.declaration.name, indent + 2);
             print_indent(indent + 1);
             printf("Type:\n");
-            print_type(node->data.declaration.type, indent + 2);
+            print_type(*(node->data.declaration.type), indent + 2);
             if (node->data.declaration.value) {
                 print_indent(indent + 1);
                 printf("Value:\n");
@@ -377,7 +377,7 @@ void print_ast(ASTNode* node, int indent) {
             printf("Parameter Declaration:\n");
             print_indent(indent + 1);
             printf("Type:\n");
-            print_type(node->data.param_declaration.type, indent + 2);
+            print_type(*(node->data.param_declaration.type), indent + 2);
             print_indent(indent + 1);
             printf("Name:\n");
             print_ast(node->data.param_declaration.name, indent + 2);
@@ -465,7 +465,7 @@ void print_ast(ASTNode* node, int indent) {
             printf("Name: %s\n", node->data.function_def.name);
             print_indent(indent + 1);
             printf("Return Type:\n");
-            print_type(node->data.function_def.type, indent + 2);
+            print_type(*(node->data.function_def.type), indent + 2);
             if (node->data.function_def.parameters) {
                 print_indent(indent + 1);
                 printf("Parameters:\n");
@@ -564,64 +564,28 @@ void print_node_type(NodeType node_type){
     }
 }
 
-int eval_constant(ASTNode *constant_value) {
-    if (constant_value == NULL) {
-        return 0;
+void print_value(Value v){
+    printf("Value :\n  is_const=%d\n",v.is_constant);
+    print_type(v.type,1);
+    print_indent(1);
+    if(v.type.n_pointers > 0){
+        printf("val=%d\n",v.value.i);
+        return;
     }
-    switch (constant_value->type) {
+    switch (v.type.type) {
+        case NODE_INT:printf("val=%d\n",v.value.i);break;
+        case NODE_FLOAT:printf("val=%f\n",v.value.f);break;
+        case NODE_VOID:printf("val=None\n");break;
+        case NODE_CHAR:printf("val='%c'\n",v.value.c);break;
+    }
+}
 
-        case NODE_IDENTIFIER:
-            return 0;
-        case NODE_CONSTANT:
-            break;
-        case NODE_ARRAY_ACCESS:
-            break;
-        case NODE_FUNCTION_CALL:
-            break;
-        case NODE_UNARY_OP:
-            break;
-        case NODE_PARAM_LIST:
-            break;
-        case NODE_STMT_LIST:
-            break;
-        case NODE_DECLARATION_LIST:
-            break;
-        case NODE_DECLARATOR_LIST:
-            break;
-        case NODE_INIT_LIST:
-            break;
-        case NODE_ARG_LIST:
-            break;
-        case NODE_TOP_LEVEL_LIST:
-            break;
-        case NODE_BINARY_OP:
-            break;
-        case NODE_ASSIGNMENT:
-            break;
-        case NODE_DECLARATION:
-            break;
-        case NODE_ARRAY_DECLARATION:
-            break;
-        case NODE_PARAM_DECLARATION:
-            break;
-        case NODE_COMPOUND_STMT:
-            break;
-        case NODE_IF:
-            break;
-        case NODE_WHILE:
-            break;
-        case NODE_DO_WHILE:
-            break;
-        case NODE_FOR:
-            break;
-        case NODE_CONTINUE:
-            break;
-        case NODE_BREAK:
-            break;
-        case NODE_RETURN:
-            break;
-        case NODE_FUNCTION_DEF:
-            break;
+void print_val_or_addr(ValueOrAddress v){
+    print_value(v.value);
+    if (v.has_address){
+        printf("  addr=%d\n",v.address);
+    }else{
+        printf("  value is not addressed\n");
     }
 }
 int type_size(full_type_t* full_type){

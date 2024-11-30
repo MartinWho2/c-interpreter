@@ -15,6 +15,8 @@ FrameList * add_new_frame_list(FrameList* frame_list, int new_frame_ptr){
     new_frame_list->last_frames = frame_list;
     return new_frame_list;
 }
+
+// Frees the last frame and returns the current frameslist
 FrameList * return_to_last_frame(FrameList* frame_list){
     FrameList * new_frame = frame_list->last_frames;
     free(frame_list);
@@ -45,7 +47,7 @@ void destroy_memory_manager(MemoryManager* memory_manager){
 
 
 
-int declare_new_variable(MemoryManager * memory_manager, full_type_t* full_type){
+int declare_new_variable_in_memory(MemoryManager * memory_manager, full_type_t* full_type){
     int size = type_size(full_type);
     int address_for_variable = memory_manager->stack_pointer;
     memory_manager->stack_pointer = memory_manager->stack_pointer + size;
@@ -61,6 +63,11 @@ int declare_new_variable(MemoryManager * memory_manager, full_type_t* full_type)
     }
     return address_for_variable;
 }
+
+void set_stack_pointer_to_curr_frame_pointer(MemoryManager * memory_manager){
+    memory_manager->stack_pointer = memory_manager->frame_list->current_frame_pointer;
+}
+
 
 void* get_raw_ptr_for_var(MemoryManager * memoryManager, int variable_address){
     if (variable_address > memoryManager->size_memory || variable_address < 0){
