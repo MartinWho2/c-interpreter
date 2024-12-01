@@ -1,5 +1,5 @@
 float avg(int count, int *value) {
-  int total;
+  int total = 0;
   int sum;
   sum = 0;
   for (int i = 0; i < count; i++) {
@@ -8,13 +8,12 @@ float avg(int count, int *value) {
   return total / count;
 }
 
+
+
 int main() {
-  int studentNumber = 2, count = 3, i, sum;
+  int count, i, sum;
   int mark[4];
   float average;
-  char a = 'c';
-  char* ab = "hello";
-  studentNumber = count == 3;
   count = 4;
   sum = 0;
   for (int  i = 0; i < count; i++) {
@@ -22,8 +21,7 @@ int main() {
     sum = sum + mark[i];
     average = avg(i + 1, mark);
     if (average > 40) {
-      printf("hello", average);
+      printf("%lf\n", average);
     }
   }
-  i = 12;
 }

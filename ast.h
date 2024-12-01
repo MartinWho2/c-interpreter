@@ -12,19 +12,19 @@ typedef enum {
     NODE_UNARY_OP,
 
     NODE_PARAM_LIST,
-    NODE_STMT_LIST,
-    NODE_DECLARATION_LIST,
     NODE_DECLARATOR_LIST,
     NODE_INIT_LIST,
     NODE_ARG_LIST,
     NODE_TOP_LEVEL_LIST,
+    NODE_INSTRUCTION_LIST,
+
+    NODE_BLOCK,
 
     NODE_BINARY_OP,
     NODE_ASSIGNMENT,
     NODE_DECLARATION,
     NODE_ARRAY_DECLARATION,
     NODE_PARAM_DECLARATION,
-    NODE_COMPOUND_STMT,
     NODE_IF,
     NODE_WHILE,
     NODE_DO_WHILE,
@@ -199,8 +199,7 @@ typedef struct ASTNode {
 
         // For compound statements
         struct {
-            struct ASTNode *dec_list;
-            struct ASTNode *stmt_list;
+            struct ASTNode *block;
         } compound_stmt;
         
         // For if statements
@@ -260,7 +259,7 @@ ASTNode* create_assignment(ASTNode* left, ASTNode* right, assign_operator operat
 ASTNode* create_declaration(ASTNode* name, full_type_t * full_type, ASTNode* value);
 ASTNode* create_array_declaration(ASTNode* name, ASTNode* size);
 ASTNode* create_param_declaration(full_type_t * full_type, ASTNode* name);
-ASTNode* create_compound_stmt(ASTNode* dec_list, ASTNode* stmt_list);
+ASTNode* create_block(ASTNode* block);
 ASTNode* create_if_stmt(ASTNode* condition, ASTNode* if_body, ASTNode* else_body);
 ASTNode* create_while_loop(ASTNode* condition, ASTNode* body);
 ASTNode* create_do_while_loop(ASTNode* condition, ASTNode* body);
@@ -277,6 +276,8 @@ void print_val_or_addr(ValueOrAddress v);
 void print_value(Value v);
 
 int type_size(full_type_t* full_type);
+int is_void_value(Value* v);
+int is_zero(ValueOrAddress* v);
 
 void error_on_wrong_node(NodeType expected, NodeType actual, const char *function_name);
 void error_out(ASTNode* current_node, const char* error_message);

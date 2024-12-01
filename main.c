@@ -22,12 +22,11 @@ int main(int argc, char *argv[]) {
     }
     yyin = file;
 
-
     int result = yyparse();
 
     if (result == 0) {
-        printf("\nParsing successful! Here's the AST:\n");
-        print_ast(root, 0);
+        //printf("\nParsing successful! Here's the AST:\n");
+        //print_ast(root, 0);
         GlobalManager * global_manager = create_global_manager(root);
         execute_code(global_manager);
         // Here you can:

@@ -2,6 +2,7 @@
 
 #include "memory_manager.h"
 #include "symbol_table.h"
+#include "flow_manager.h"
 
 typedef struct functions_t {
     ASTNode * func_def;
@@ -11,6 +12,7 @@ typedef struct functions_t {
 typedef struct GlobalManager {
     MemoryManager * memory_manager;
     ScopeManager * scope_manager;
+    FlowManager * flow_manager;
     ASTNode * root;
     functions_t** function_defs;
     int n_funcs;

@@ -38,7 +38,7 @@ SymbolTablesList* return_func_update_symbol_tables_list(SymbolTablesList* curren
 SymbolTablesList* exit_compound_stmt(SymbolTablesList* current){
     if (current->is_new_function){
         fprintf(stderr,"ERROR tried to escape compound statement but was outer scope of function\n");
-        return NULL;
+        exit(1);
     }
     SymbolTablesList* prev = current->prev;
     free_symbol_table(current->local_vars);

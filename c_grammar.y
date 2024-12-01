@@ -66,13 +66,13 @@ ASTNode* root = NULL;
 %type <node> declaration
 %type <node> init_declarator init_declarator_list
 %type <type_type> type_specifier
-%type <node> declarator
+%type <node> declarator block line
 %type <token> pointer
 %type <node> parameter_list
 %type <node> parameter_declaration
 %type <node> initializer initializer_list
-%type <node> statement compound_statement declaration_list
-%type <node> statement_list expression_statement
+%type <node> statement compound_statement
+%type <node> expression_statement
 %type <node> selection_statement iteration_statement jump_statement
 %type <node> translation_unit external_declaration
 %type <node> function_definition
@@ -83,7 +83,7 @@ ASTNode* root = NULL;
 
 primary_expression
 	: IDENTIFIER
-        {$$ = create_identifier(yytext);}
+        {$$ = create_identifier(yylval.string);}
 	| CONSTANT
         {$$ = create_constant($1);}
 	| STRING_LITERAL
@@ -340,30 +340,23 @@ statement
 	| jump_statement
 	;
 
+block
+    : line
+    | line block
+        {$$ = create_list($1,$2,NODE_INSTRUCTION_LIST);}
+    ;
+
+
+line
+    : declaration
+    | statement
+    ;
+
 compound_statement
 	: '{' '}'
-	 	{$$ = create_compound_stmt(NULL,NULL);}
-	| '{' statement_list '}'
-		{$$ = create_compound_stmt(NULL,$2);}
-	| '{' declaration_list '}'
-		{$$ = create_compound_stmt($2,NULL);}
-	| '{' declaration_list statement_list '}'
-		{$$ = create_compound_stmt($2,$3);}
-	;
-
-declaration_list
-	: declaration
-		{$$ = $1;}
-	| declaration declaration_list
-		{$$ = create_list($1,$2,NODE_DECLARATION_LIST);}
-	;
-
-statement_list
-	: statement
-		{$$ = $1;}
-	| statement statement_list
-		{$$ = create_list($1,$2,NODE_STMT_LIST);}
-
+	 	{$$ = create_block(NULL);}
+	| '{' block '}'
+	    {$$ = create_block($2);}
 	;
 
 expression_statement
@@ -376,6 +369,8 @@ selection_statement
 		{$$ = create_if_stmt($3,$5,NULL);}
 	| IF '(' assignment_expression ')' compound_statement ELSE compound_statement
 		{$$ = create_if_stmt($3,$5,$7);}
+	| IF '(' assignment_expression ')' compound_statement ELSE selection_statement
+    	{$$ = create_if_stmt($3,$5,$7);}
 	;
 
 iteration_statement

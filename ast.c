@@ -66,6 +66,13 @@ ASTNode* create_bin_op(ASTNode* left, ASTNode* right,bin_operator operator) {
     return node;
 }
 
+ASTNode* create_block(ASTNode* block){
+    ASTNode * node = malloc(sizeof (ASTNode));
+    node->type = NODE_BLOCK;
+    node->data.compound_stmt.block = block;
+    return node;
+}
+
 ASTNode* create_assignment(ASTNode* left, ASTNode* right, assign_operator operator) {
     ASTNode* node = malloc(sizeof(ASTNode));
     node->type = NODE_ASSIGNMENT;
@@ -103,13 +110,6 @@ ASTNode* create_param_declaration(full_type_t * full_type, ASTNode* name){
 
 }
 
-ASTNode* create_compound_stmt(ASTNode* dec_list, ASTNode* stmt_list){
-    ASTNode* node = malloc(sizeof(ASTNode));
-    node->type = NODE_COMPOUND_STMT;
-    node->data.compound_stmt.dec_list = dec_list;
-    node->data.compound_stmt.stmt_list = stmt_list;
-    return node;
-}
 
 ASTNode* create_if_stmt(ASTNode* condition, ASTNode* if_body, ASTNode* else_body) {
     ASTNode* node = malloc(sizeof(ASTNode));
@@ -267,14 +267,17 @@ void print_ast(ASTNode* node, int indent) {
             printf("Operand:\n");
             print_ast(node->data.unary.operand, indent + 2);
             break;
-
+        case NODE_BLOCK:
+            print_indent(indent);
+            printf("Block:\n");
+            print_ast(node->data.compound_stmt.block,indent+1);
+            break;
         case NODE_PARAM_LIST:
-        case NODE_STMT_LIST:
         case NODE_DECLARATOR_LIST:
-        case NODE_DECLARATION_LIST:
         case NODE_INIT_LIST:
         case NODE_ARG_LIST:
         case NODE_TOP_LEVEL_LIST:
+        case NODE_INSTRUCTION_LIST:
             print_indent(indent);
             printf("List:\n");
             print_ast(node->data.arg_list.arg, indent + 1);
@@ -383,16 +386,6 @@ void print_ast(ASTNode* node, int indent) {
             print_ast(node->data.param_declaration.name, indent + 2);
             break;
 
-        case NODE_COMPOUND_STMT: 
-            print_indent(indent);
-            printf("Compound Statement:\n");
-            print_indent(indent + 1);
-            printf("Declaration List:\n");
-            print_ast(node->data.compound_stmt.dec_list, indent + 2);
-            print_indent(indent + 1);
-            printf("Statement List:\n");
-            print_ast(node->data.compound_stmt.stmt_list, indent + 2);
-            break;
 
         case NODE_IF:
             print_indent(indent);
@@ -475,6 +468,7 @@ void print_ast(ASTNode* node, int indent) {
             printf("Body:\n");
             print_ast(node->data.function_def.body, indent + 2);
             break;
+
         default:
             print_indent(indent);
             printf("Unhandled Node Type: %d\n", node->type);
@@ -501,13 +495,10 @@ void print_node_type(NodeType node_type){
         case NODE_PARAM_LIST:
             printf("Param List\n");
             break;
-        case NODE_STMT_LIST:
-            printf("Stmt List\n");
-            break;
         case NODE_DECLARATOR_LIST:
             printf("Declarator List\n");
             break;
-        case NODE_DECLARATION_LIST:
+        case NODE_BLOCK:
             printf("Declaration List\n");
             break;
         case NODE_INIT_LIST:
@@ -534,9 +525,6 @@ void print_node_type(NodeType node_type){
         case NODE_PARAM_DECLARATION:
             printf("Param Declaration\n");
             break;
-        case NODE_COMPOUND_STMT:
-            printf("Compound Statement\n");
-            break;
         case NODE_IF:
             printf("If\n");
             break;
@@ -560,6 +548,9 @@ void print_node_type(NodeType node_type){
             break;
         case NODE_FUNCTION_DEF:
             printf("Function Definition\n");
+            break;
+        case NODE_INSTRUCTION_LIST:
+            printf("Instruction list\n");
             break;
     }
 }
@@ -603,6 +594,29 @@ int type_size(full_type_t* full_type){
             return 0;
     }
 }
+
+int is_void_value(Value* v){
+    return v->type.type == NODE_VOID && v->type.n_pointers == 0;
+}
+
+int is_zero(ValueOrAddress* v){
+    if (v->value.type.n_pointers > 0) {
+        fprintf(stderr,"a pointer cannot be zero value, it's a fk pointer");
+        exit(1);
+    }
+    switch (v->value.type.type) {
+        case NODE_INT:
+            return v->value.value.i == 0;
+        case NODE_FLOAT:
+            return v->value.value.f == 0.0f;
+        case NODE_VOID:
+            fprintf(stderr,"Void cannot be zero...");
+            exit(1);
+        case NODE_CHAR:
+            return v->value.value.c == 0;
+    }
+}
+
 void error_on_wrong_node(NodeType expected, NodeType actual, const char *function_name) {
     if (expected == actual) return;
     fprintf(stderr, "%s called with wrong node ( expected ", function_name);
