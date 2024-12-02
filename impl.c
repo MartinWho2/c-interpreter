@@ -11,17 +11,11 @@ float avg(int count, int *value) {
 
 
 int main() {
-  int count, i, sum;
-  int mark[4];
-  float average;
-  count = 4;
-  sum = 0;
-  for (int  i = 0; i < count; i++) {
-    mark[i] = (i * 30);
-    sum = sum + mark[i];
-    average = avg(i + 1, mark);
-    if (average > 40) {
-      printf("%lf\n", average);
+    int u = 0;
+    for (int i = 0; i < "12"; ++i) {
+        int a = 7;
+        u = i;
     }
-  }
+    int x = 12;
+    return u;
 }

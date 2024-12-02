@@ -35,3 +35,4 @@ FlowElement *get_last(FlowManager* flow_manager);
 int is_loop(FlowEnum flow_enum);
 
 void print_current_flow(FlowManager* flow_manager);
+void print_flow_enum(FlowEnum f);

@@ -11,5 +11,5 @@ y.tab.c
 y.tab.h
 lex.yy.c
 lex.yy.o
-a
+parser3
 symbol_table_test

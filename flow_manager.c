@@ -43,6 +43,7 @@ void push_node(FlowManager *flow_manager,ASTNode* node, ASTNode* next_node){
             flow_element->flow_type = FLOW_BLOCK;
             break;
         default:
+            print_node_type(node->type);
             error_out(node,"Expected a node that involves flow control");
     }
     flow_manager->flow_element_stack[(flow_manager->stack_pointer)++] = flow_element;
@@ -57,14 +58,14 @@ void pop_flow_until_last_func_call(FlowManager* flow_manager){
     }
     FlowElement * flow_element = flow_manager->flow_element_stack[stack_pointer];
     while (flow_element->flow_type != FLOW_FUNC_CALL){
-        if (stack_pointer == 0){
+        if (stack_pointer < 0){
             fprintf(stderr,"Popping all control flow without finding function call ??");
             exit(1);
         }
         free(flow_element);
         flow_element = flow_manager->flow_element_stack[stack_pointer--];
     }
-    flow_manager->stack_pointer = stack_pointer--;
+    flow_manager->stack_pointer = stack_pointer;
     free(flow_element);
 
 }
@@ -123,7 +124,7 @@ FlowElement *get_last(FlowManager* flow_manager){
 }
 
 void pop_last(FlowManager* flow_manager){
-    free(flow_manager->flow_element_stack[--flow_manager->stack_pointer]);
+    free(flow_manager->flow_element_stack[--(flow_manager->stack_pointer)]);
 }
 
 int is_loop(FlowEnum flowEnum){
@@ -161,18 +162,31 @@ void print_flow_enum(FlowEnum f){
         case FLOW_BLOCK:
             printf("BLOCK\n");
             break;
+        default:
+            printf("UNKOWN FLOW ?? %d",f);
+            break;
     }
 }
-void print_current_flow(FlowManager* flow_manager){
-    printf("  Flow manager:\n");
+void print_current_flow(FlowManager* flow_manager) {
+    if (flow_manager == NULL) return;
+
+    printf("  ║ 🌊 Flow Manager               ║\n");
+    printf("  ╠═══════════════════════════════╣\n");
+
     for (int i = 0; i < flow_manager->stack_pointer; ++i) {
-        printf("    ");
+        printf("  ║ 🔀 Flow %2d:                   ║\n", i);
+        printf("  ║   🔄 Flow Type: ");
         print_flow_enum(flow_manager->flow_element_stack[i]->flow_type);
-        if (flow_manager->flow_element_stack[i]->next_node){
-            printf("    next node type: ");
+
+        if (flow_manager->flow_element_stack[i]->next_node) {
+            printf("  ║   🔜 Next Node Type: ");
             print_node_type(flow_manager->flow_element_stack[i]->next_node->type);
-        }else{
-            printf("    no next node for block\n");
+        } else {
+            printf("  ║   🚫 No Next Node for Block   ║\n");
         }
+    }
+
+    if (flow_manager->stack_pointer == 0) {
+        printf("  ║   🔷 No Flow Elements         ║\n");
     }
 }

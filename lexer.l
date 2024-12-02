@@ -139,7 +139,7 @@ void count()
 		else
 			column++;
 
-	//ECHO;
+	ECHO;
 }
 
 /*ConstInfo* parse_hex(const char* s){

@@ -1,7 +1,11 @@
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 #include "global_manager.h"
 #define VOID_VALUE (Value){0,{NODE_VOID,0},0}
+
+#define DEBUG 1
+
 ASTNode RETURN_VOID =  (ASTNode){NODE_RETURN,.data.return_stmt.value=NULL};
 
 GlobalManager * create_global_manager(ASTNode* root){
@@ -67,30 +71,49 @@ void register_all_functions(GlobalManager* global_manager) {
 }
 
 
+void enter_new_scope(GlobalManager* global_manager, ASTNode* instruction, ASTNode* next_instruction){
+    MemoryManager * memory_manager = global_manager->memory_manager;
+    enter_new_scope_scope_manager(global_manager->scope_manager);
+    FrameList *new_frame_list = add_new_frame_list(memory_manager->frame_list,memory_manager->stack_pointer);
+    memory_manager->frame_list = new_frame_list;
+    push_node(global_manager->flow_manager,instruction,next_instruction);
+}
+
 void call_function_total(GlobalManager *global_manager,ASTNode* fun_def, ASTNode* fun_call){
     MemoryManager * memory_manager = global_manager->memory_manager;
     ScopeManager * scope_manager = global_manager->scope_manager;
-    FrameList * new_frame_list = add_new_frame_list(memory_manager->frame_list,memory_manager->stack_pointer);
-    memory_manager->frame_list = new_frame_list;
+    enter_new_scope(global_manager,fun_call,NULL);
     SymbolTable * from_args = construct_symbol_table_for_function_call(fun_def,memory_manager);
     insert_arguments_from_func_call(global_manager,from_args,fun_def,fun_call);
     call_function(scope_manager,from_args);
-    push_node(global_manager->flow_manager,fun_call,NULL);
 }
-ValueOrAddress return_function_total(GlobalManager* global_manager,ASTNode* return_value, full_type_t return_type){
-    MemoryManager * memory_manager = global_manager->memory_manager;
-    ScopeManager * scope_manager = global_manager->scope_manager;
-    set_stack_pointer_to_curr_frame_pointer(global_manager->memory_manager);
+
+// Warning: This function also frees the last flow element so if you need it, save its values before
+// Also this function should not be used to return from function calls
+void exit_scope(GlobalManager *global_manager) {
+    MemoryManager *memory_manager = global_manager->memory_manager;
+    set_stack_pointer_to_curr_frame_pointer(memory_manager);
     memory_manager->frame_list = return_to_last_frame(memory_manager->frame_list);
-    ValueOrAddress ret_value;
-    //fprintf(stderr,"DEBUG\n");
-    //print_current_flow(global_manager->flow_manager);
+    pop_last(global_manager->flow_manager);
+    exit_scope_scope_manager(global_manager->scope_manager);
+}
+
+void exit_scope_from_func_call(GlobalManager* global_manager) {
+    MemoryManager *memory_manager = global_manager->memory_manager;
+    set_stack_pointer_to_curr_frame_pointer(memory_manager);
+    memory_manager->frame_list = return_to_last_frame(memory_manager->frame_list);
     pop_flow_until_last_func_call(global_manager->flow_manager);
+    return_to_prev_function(global_manager->scope_manager);
+}
+
+ValueOrAddress return_function_total(GlobalManager* global_manager,ASTNode* return_value, full_type_t return_type){
+    ValueOrAddress ret_value;
     if (return_value == NULL){
         ret_value = (ValueOrAddress){{1,{NODE_VOID,0},0},0,-1};
     }else{
         ret_value = eval_expr(global_manager,return_value);
     }
+    exit_scope_from_func_call(global_manager);
     if (ret_value.value.type.type != return_type.type || ret_value.value.type.n_pointers != return_type.n_pointers){
         error_out(return_value,"Returning wrong type from function\n");
         print_type(ret_value.value.type,1);
@@ -98,7 +121,6 @@ ValueOrAddress return_function_total(GlobalManager* global_manager,ASTNode* retu
         print_type(return_type,1);
         exit(1);
     }
-    return_to_prev_function(scope_manager);
     return ret_value;
 }
 
@@ -133,7 +155,7 @@ ValueOrAddress eval_unary_op(GlobalManager *global_manager, ASTNode* unary_op){
             if (!res.has_address){
                 error_out(unary_op,"Tried to take the address of a non-addressed value");
             }
-             new_value = (Value){res.value.is_constant,{res.value.type.type,res.value.type.n_pointers+1},res.value.value};
+             new_value = (Value){0,{res.value.type.type,res.value.type.n_pointers+1},res.address};
             return (ValueOrAddress){new_value,0,-1};
         case NODE_DEREF:
             res = eval_expr(global_manager,unary_op->data.unary.operand);
@@ -657,7 +679,7 @@ ASTNode * find_function(GlobalManager* global_manager, const char* func_name){
             return global_manager->function_defs[i]->func_def;
         }
     }
-    fprintf(stderr,"Function %s not defined",func_name);
+    fprintf(stderr,"[ERROR] Function %s not defined\n",func_name);
     exit(1);
 }
 
@@ -665,8 +687,6 @@ ASTNode *next_instruction(ASTNode* curr_instr_list){
     ASTNode *next_instr;
     if (curr_instr_list->type == NODE_INSTRUCTION_LIST){
         next_instr = curr_instr_list->data.arg_list.next;
-        if (next_instr->type == NODE_INSTRUCTION_LIST)
-            next_instr = next_instr->data.arg_list.arg;
     }else{
         next_instr = NULL;
     }
@@ -683,69 +703,107 @@ ASTNode* return_void(ASTNode* fun_def){
     }
     return &RETURN_VOID;
 }
+// return 1 if should return void, 0 otherwise
+int handle_end_of_block(GlobalManager* globalManager, ASTNode** curr_instr_list_ptr){
+    FlowElement *last_flow_elem = NULL;
+
+    last_flow_elem = get_last(globalManager->flow_manager);
+    ASTNode *next = last_flow_elem->next_node;
+    ASTNode *current = last_flow_elem->ast_node;
+    FlowEnum current_flow_type = last_flow_elem->flow_type;
+    // If a function was called for the block, just return void since there was no return value
+    if (current_flow_type == FLOW_FUNC_CALL){
+        // just make sure that we are allowed to return void
+        return 1;
+    }
+    // we can exit scope since we saved all information
+    exit_scope(globalManager);
+
+    // We reached the end of out block
+    while (next == NULL || is_loop(current_flow_type)) {
+        int already_exited = 0;
+        if (is_loop(current_flow_type)) {
+            // exit scope to evaluate value with only outer for / while
+            switch (current_flow_type) {
+                case FLOW_WHILE:
+                case FLOW_DO_WHILE:
+                    ValueOrAddress condition = eval_expr(globalManager, current->data.while_loop.condition);
+                    if (is_zero(&condition)) {
+                        if (next != NULL){
+                            *curr_instr_list_ptr = next;
+                            return 0;
+                        }
+                        already_exited = 1;
+                        break;
+                    }
+                    *curr_instr_list_ptr = current->data.while_loop.body->data.compound_stmt.block;
+                    enter_new_scope(globalManager,current,next);
+                    return 0;
+                case FLOW_FOR:
+                    // evaluate effect (i.e. i++ 99% of time)
+                    ValueOrAddress r = eval_expr(globalManager,current->data.for_loop.effect);
+                    // recompute condition
+                    condition = eval_expr(globalManager,current->data.for_loop.condition);
+                    if (is_zero(&condition)){
+                        // exit 2nd scope of for loop
+                        exit_scope(globalManager);
+                        if (next != NULL){
+                            *curr_instr_list_ptr = next;
+                            return 0;
+                        }
+                        already_exited = 1;
+                        break;
+                    }
+                    *curr_instr_list_ptr = current->data.for_loop.body->data.compound_stmt.block;
+                    enter_new_scope(globalManager,current,next);
+                    return 0;
+                default:
+                    error_out(*curr_instr_list_ptr, "impossible error");
+            }
+        }else{
+            last_flow_elem = get_last(globalManager->flow_manager);
+            current_flow_type = last_flow_elem->flow_type;
+            current = last_flow_elem->ast_node;
+            next = last_flow_elem->next_node;
+            // If a function was called for the block, just return void since there was no return value
+            if (!already_exited){
+                if (current_flow_type == FLOW_FUNC_CALL){return 1;}
+                exit_scope(globalManager);
+            }
+        }
+    }
+    *curr_instr_list_ptr = next;
+    return 0;
+}
+
+
 ASTNode* execute_function(GlobalManager *globalManager,ASTNode *fun_def){
     error_on_wrong_node(NODE_FUNCTION_DEF,fun_def->type,"execute_function");
     ASTNode* body = fun_def->data.function_def.body->data.compound_stmt.block;
-    //fprintf(stderr,"CALLED %s\n",func_name);
     if (body == NULL){
         return return_void(fun_def);
     }
     ASTNode *curr_instr_list = body;
-    /*printf("\n\n=====================================================\n");
-    print_ast(fun_def,0);
-    printf("\n=====================================================\n\n\n");*/
-
     ASTNode *curr_instr = NULL;
     while (1){
         // curr_instr_list can be NULL if body of compound_stmt is NULL
+        // This is when you reach the end of a block
         if (curr_instr == curr_instr_list || curr_instr_list == NULL){
-            FlowElement *last_flow_elem = NULL;
-            last_flow_elem = get_last(globalManager->flow_manager);
-            int loop_will_restart = 0;
-            // We reached the end of out block
-            while (last_flow_elem->next_node == NULL || (is_loop(last_flow_elem->flow_type) && !loop_will_restart)) {
-                if (last_flow_elem->flow_type == FLOW_FUNC_CALL){
-                    return return_void(fun_def);
-                }
-                if (is_loop(last_flow_elem->flow_type)) {
-                    ASTNode *loop_instr = last_flow_elem->ast_node;
-                    // exit scope to evaluate value with only outer for / while
-                    exit_scope(globalManager->scope_manager);
-                    switch (last_flow_elem->flow_type) {
-                        case FLOW_WHILE:
-                        case FLOW_DO_WHILE:
-                            ValueOrAddress condition = eval_expr(globalManager, loop_instr->data.while_loop.condition);
-                            if (is_zero(&condition)) { loop_will_restart = 1;break; }
-                            curr_instr_list = loop_instr->data.while_loop.body->data.compound_stmt.block;
-                            enter_new_scope(globalManager->scope_manager);
-                            goto SKIP_SET_CURR_INSTR_LIST;
-                        case FLOW_FOR:
-                            // evaluate effect (i.e. i++ 99% of time)
-                            eval_expr(globalManager,loop_instr->data.for_loop.effect);
-                            // recompute condition
-                            condition = eval_expr(globalManager,loop_instr->data.for_loop.condition);
-                            if (is_zero(&condition)){
-                                exit_scope(globalManager->scope_manager);
-                                loop_will_restart = 1;
-                                break;
-                            }
-                            curr_instr_list = loop_instr->data.for_loop.body->data.compound_stmt.block;
-                            enter_new_scope(globalManager->scope_manager);
-                            goto SKIP_SET_CURR_INSTR_LIST;
-                        default:
-                            error_out(curr_instr, "impossible error");
-                    }
-                }
-                pop_last(globalManager->flow_manager);
+            int should_return = handle_end_of_block(globalManager,&curr_instr_list);
+            if (should_return){
+                return return_void(fun_def);
             }
-            curr_instr_list = last_flow_elem->next_node;
         }
-        SKIP_SET_CURR_INSTR_LIST:
         curr_instr =  curr_instr_list->type == NODE_INSTRUCTION_LIST? curr_instr_list->data.arg_list.arg: curr_instr_list;
-        printf("\n\nCURR INSTR \n=============\n");
-        print_ast(curr_instr,0);
-        printf("?=============\n\n");
-        print_global_manager_state(globalManager);
+        if (DEBUG){
+            printf("\n\nCURR INSTR \n=============\n");
+            print_ast(curr_instr,0);
+            printf("?=============\n");
+            print_global_manager_state(globalManager);
+            printf("--------------------\n\n");
+        }
+        //sleep(1);
+
 
         switch (curr_instr->type){
             case NODE_IDENTIFIER:
@@ -756,15 +814,14 @@ ASTNode* execute_function(GlobalManager *globalManager,ASTNode *fun_def){
             case NODE_BINARY_OP:
             case NODE_ASSIGNMENT:
                 eval_expr(globalManager,curr_instr);
-                if (curr_instr_list->type == NODE_INSTRUCTION_LIST)
+                if (curr_instr_list->type == NODE_INSTRUCTION_LIST){
                     curr_instr_list = curr_instr_list->data.arg_list.next;
+                }
                 break;
-
             case NODE_BLOCK:
                 ASTNode *next_instr = next_instruction(curr_instr_list);
-                push_node(globalManager->flow_manager,curr_instr,next_instr);
-                curr_instr_list = curr_instr;
-                enter_new_scope(globalManager->scope_manager);
+                curr_instr_list = curr_instr->data.compound_stmt.block;
+                enter_new_scope(globalManager,curr_instr,next_instr);
                 break;
             case NODE_PARAM_LIST:
             case NODE_INSTRUCTION_LIST:
@@ -788,20 +845,16 @@ ASTNode* execute_function(GlobalManager *globalManager,ASTNode *fun_def){
                 if (!is_zero(&val)){
                     // Set next instruction for control flow
                     next_instr = next_instruction(curr_instr_list);
-                    push_node(globalManager->flow_manager,curr_instr,next_instr);
-                    curr_instr_list = curr_instr->data.if_stmt.if_body;
-                    enter_new_scope(globalManager->scope_manager);
-                }else if(curr_instr->data.if_stmt.else_body) {
+                    curr_instr_list = curr_instr->data.if_stmt.if_body->data.compound_stmt.block;
+                    enter_new_scope(globalManager, curr_instr,next_instr);
+                }else {
                     ASTNode* else_node = curr_instr->data.if_stmt.else_body;
                     while (else_node != NULL && else_node->type == NODE_IF){
                         val = eval_expr(globalManager,else_node->data.if_stmt.condition);
                         if(!is_zero(&val)){
                             next_instr = next_instruction(curr_instr_list);
-                            push_node(globalManager->flow_manager,curr_instr,next_instr);
-                            curr_instr_list = curr_instr->data.if_stmt.if_body;
-                            printf("asd");
-                            print_ast(curr_instr_list,0);
-                            enter_new_scope(globalManager->scope_manager);
+                            enter_new_scope(globalManager,curr_instr,next_instr);
+                            curr_instr_list = curr_instr->data.if_stmt.if_body->data.compound_stmt.block;
                             break;
                         }else{
                             else_node = else_node->data.if_stmt.else_body;
@@ -810,14 +863,14 @@ ASTNode* execute_function(GlobalManager *globalManager,ASTNode *fun_def){
                     if (else_node == NULL || else_node->type != NODE_IF){
                         if (else_node){
                             next_instr = next_instruction(curr_instr_list);
-                            push_node(globalManager->flow_manager,curr_instr,next_instr);
                             curr_instr_list = else_node->data.compound_stmt.block;
-                            enter_new_scope(globalManager->scope_manager);
+                            enter_new_scope(globalManager,curr_instr,next_instr);
                         }else{
                             // no condition was true and no empty-else => skip if
+                            if (curr_instr_list->type == NODE_INSTRUCTION_LIST)
+                                curr_instr_list = curr_instr_list->data.arg_list.next;
                         }
                     }
-
                 }
                 break;
             case NODE_WHILE:
@@ -826,21 +879,34 @@ ASTNode* execute_function(GlobalManager *globalManager,ASTNode *fun_def){
                 // no break because same
             case NODE_DO_WHILE:
                 next_instr = next_instruction(curr_instr_list);
-                /*printf("Next instruction :\n");
-                print_ast(next_instr,0);*/
-                push_node(globalManager->flow_manager,curr_instr,next_instr);
                 curr_instr_list = curr_instr->data.while_loop.body->data.compound_stmt.block;
-                enter_new_scope(globalManager->scope_manager);
+                enter_new_scope(globalManager,curr_instr,next_instr);
                 break;
             case NODE_FOR:
                 // scope for variable declaration of init
-                enter_new_scope(globalManager->scope_manager);
-                eval_expr(globalManager,curr_instr->data.for_loop.init);
+                ASTNode block_of_init = (ASTNode){NODE_BLOCK,.data.compound_stmt.block=curr_instr->data.for_loop.init,0,0};
+                enter_new_scope(globalManager,&block_of_init,NULL);
+                ASTNode *init = curr_instr->data.for_loop.init;
+                // the init declares a variable
+                if (init->type == NODE_DECLARATOR_LIST || init->type == NODE_DECLARATION){
+                    ASTNode *decls = init;
+                    ASTNode *curr_decl;
+                    while (decls->type == NODE_DECLARATOR_LIST){
+                        curr_decl = decls->data.arg_list.arg;
+                        ValueOrAddress v = eval_expr(globalManager,curr_decl->data.declaration.value);
+                        declare_new_variable(globalManager,curr_decl->data.declaration.name->data.identifier.name,v.value);
+                        decls = decls->data.arg_list.next;
+                    }
+                    ValueOrAddress v = eval_expr(globalManager,decls->data.declaration.value);
+                    declare_new_variable(globalManager,decls->data.declaration.name->data.identifier.name,v.value);
+                }else{
+                    eval_expr(globalManager,init);
+                }
                 condition = eval_expr(globalManager,curr_instr->data.for_loop.condition);
-                if (is_zero(&condition)) { exit_scope(globalManager->scope_manager);break; }
+                if (is_zero(&condition)) { exit_scope(globalManager);break; }
                 next_instr = next_instruction(curr_instr_list);
-                push_node(globalManager->flow_manager,curr_instr,next_instr);
-                enter_new_scope(globalManager->scope_manager);
+                enter_new_scope(globalManager,curr_instr,next_instr);
+                curr_instr_list = curr_instr->data.for_loop.body->data.compound_stmt.block;
                 break;
             case NODE_CONTINUE:
                 curr_instr_list = NULL;
@@ -848,12 +914,12 @@ ASTNode* execute_function(GlobalManager *globalManager,ASTNode *fun_def){
             case NODE_BREAK:
                 FlowElement *flow_elem = pop_until_last_loop(globalManager->flow_manager);
                 curr_instr_list = flow_elem->next_node;
-                flow_elem = NULL;
-                exit_scope(globalManager->scope_manager);
                 // exit the scope from the init of the for loop
                 if (flow_elem->flow_type == FLOW_FOR)
-                    exit_scope(globalManager->scope_manager);
-                pop_last(globalManager->flow_manager);
+                    exit_scope(globalManager);
+                // avoid UAF
+                flow_elem = NULL;
+                exit_scope(globalManager);
                 break;
             case NODE_RETURN:
                 return curr_instr->data.return_stmt.value;
@@ -887,8 +953,7 @@ ValueOrAddress eval_expr(GlobalManager *global_manager,ASTNode* ast_node){
         case NODE_ARRAY_ACCESS:
             ValueOrAddress array = eval_expr(global_manager,ast_node->data.array_access.array);
             if (array.value.type.n_pointers == 0){
-                fprintf(stderr,"[ERROR] Tried to access an array on a non-pointer variable (l. %d)\n",ast_node->line_number);
-                exit(1);
+                error_out(ast_node,"Tried to access an array on a non-pointer variable");
             }
             ValueOrAddress index = eval_expr(global_manager,ast_node->data.array_access.index);
             if ((index.value.type.type != NODE_INT && index.value.type.type != NODE_CHAR)||
@@ -897,12 +962,12 @@ ValueOrAddress eval_expr(GlobalManager *global_manager,ASTNode* ast_node){
                 exit(1);
             }
             int arr_index = index.value.type.type == NODE_CHAR ? index.value.value.c: index.value.value.i;
-            full_type_t new_type = {v.type.type,v.type.n_pointers - 1};
-            int final_ptr = v.value.i + arr_index * type_size(&new_type);
+            full_type_t new_type = {array.value.type.type,array.value.type.n_pointers - 1};
+            int final_ptr = array.value.value.i + arr_index * type_size(&new_type);
             void* element_ptr = get_raw_ptr_for_var(global_manager->memory_manager,final_ptr);
             Value result = {0,new_type,0};
             add_correct_value_type_to_v(new_type,element_ptr,&result);
-            ValueOrAddress ret = {result,1,v.value.i};
+            ValueOrAddress ret = {result,1,final_ptr};
             return ret;
         case NODE_FUNCTION_CALL:
             char* fun_name = ast_node->data.function_call.function->data.identifier.name;
@@ -938,6 +1003,7 @@ ValueOrAddress eval_expr(GlobalManager *global_manager,ASTNode* ast_node){
         case NODE_BREAK:
         case NODE_RETURN:
         case NODE_FUNCTION_DEF:
+        case NODE_INSTRUCTION_LIST:
             fprintf(stderr,"[ERROR] Tried to evaluate the expression of something which is not an expression");
             print_node_type(ast_node->type);
             exit(1);
@@ -1037,20 +1103,47 @@ void declare_new_variable(GlobalManager* global_manager, const char* name, Value
     }
 }
 
-void print_memory(GlobalManager* global_manager){
-    printf("\n  MEMORY\n    ");
-    for (int i = 0; i < global_manager->memory_manager->stack_pointer; ++i) {
-        printf("%02x|",(( unsigned char*)(global_manager->memory_manager->base_of_stack))[i]);
+void print_memory(GlobalManager* global_manager) {
+    if (global_manager == NULL || global_manager->memory_manager == NULL) return;
+
+    printf("  ║ 💾 Memory Dump                ║\n");
+    printf("  ╠═══════════════════════════════╣\n");
+
+    int stack_pointer = global_manager->memory_manager->stack_pointer;
+    unsigned char* base_of_stack = (unsigned char*)(global_manager->memory_manager->base_of_stack);
+
+    if (stack_pointer == 0) {
+        printf("  ║   🔷 No Memory Allocated      ║\n");
+        return;
     }
-    printf("\n\n");
+
+    printf("  ║   🔢 Bytes: %d                 ║\n", stack_pointer);
+    printf("  ║   📊 Memory Contents:         ║\n");
+
+    printf("  ║   ");
+    for (int i = 0; i < stack_pointer; ++i) {
+        if (i > 0 && i % 16 == 0) {
+            printf("\n  ║   ");
+        }
+        printf("%02x ", base_of_stack[i]);
+    }
+    printf("\n");
 }
 
 void print_global_manager_state(GlobalManager* global_manager){
-    printf("\n\nGlobal's manager state:\n");
-    printf("  SP = %d\n",global_manager->memory_manager->stack_pointer);
-    printf("  FP = %d\n",global_manager->memory_manager->frame_list->current_frame_pointer);
-    printf("  Memory size = %d\n",global_manager->memory_manager->size_memory);
-    printf("  Functions calls = %d\n", num_fun_calls(global_manager->scope_manager));
+    fflush(stdout);
+    printf("\n\n");
+    printf("  ╔═══════════════════════════════╗\n");
+    printf("  ║  🌐 Global Manager State 🌐   ║\n");
+    printf("  ╠═══════════════════════════════╣\n");
+    printf("  ║ 📊 Stack Pointer    : %6d  ║\n", global_manager->memory_manager->stack_pointer);
+    printf("  ║ 🖼️  Frame Pointer    : %6d  ║\n", global_manager->memory_manager->frame_list->current_frame_pointer);
+    printf("  ║ 💾 Memory Size      : %6d  ║\n", global_manager->memory_manager->size_memory);
+    printf("  ║ 📚 Num Tables    : %6d     ║\n", num_symbol_tables(global_manager->scope_manager));
+    printf("  ╠═══════════════════════════════╣\n");
+    print_symbol_tables(global_manager->scope_manager);
     print_current_flow(global_manager->flow_manager);
     print_memory(global_manager);
+    printf("  ╚══════════════════════════════╝\n");
+    fflush(stdout);
 }

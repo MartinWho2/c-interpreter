@@ -74,17 +74,14 @@ void call_function(ScopeManager* scope_manager, SymbolTable* arguments){
     scope_manager->symbol_tables = new_symbol_tables_list;
 }
 // Enter a new scope (i.e. a compound statement)
-void enter_new_scope(ScopeManager* scope_manager){
+void enter_new_scope_scope_manager(ScopeManager* scope_manager){
     SymbolTable* new_symbol_table = create_symbol_table(100);
     SymbolTablesList* new_symbol_tables_list = add_scope(scope_manager->symbol_tables,new_symbol_table,false);
     scope_manager->symbol_tables = new_symbol_tables_list;
 }
 
-void exit_scope(ScopeManager* scope_manager){
+void exit_scope_scope_manager(ScopeManager* scope_manager){
     SymbolTablesList* prev_scope = exit_compound_stmt(scope_manager->symbol_tables);
-    if (prev_scope == NULL){
-        return;
-    }
     scope_manager->symbol_tables = prev_scope;
 }
 
@@ -254,7 +251,7 @@ bool remove_symbol(SymbolTable* table, const char* name) {
     return false; // Symbol not found
 }
 
-int num_fun_calls(ScopeManager* scope_manager){
+int num_symbol_tables(ScopeManager* scope_manager){
     SymbolTablesList* symbolTablesList = scope_manager->symbol_tables;
     int calls = 0;
     while (symbolTablesList != NULL){
@@ -262,6 +259,35 @@ int num_fun_calls(ScopeManager* scope_manager){
         symbolTablesList = symbolTablesList->prev;
     }
     return calls;
+}
+
+void print_symbol_table(SymbolTable* table){
+    if (table == NULL) return;
+
+    printf("  ║  📋 Symbol Table:             ║\n");
+    for (int i = 0; i < table->size; ++i) {
+        SymbolEntry * entry = table->entries[i];
+        while (entry != NULL){
+            printf("  ║   🔍 %-10s : %10d  ║\n", entry->name, entry->address);
+            entry = entry->next;
+        }
+    }
+}
+
+void print_symbol_tables(ScopeManager* scope_manager){
+    if (scope_manager == NULL) return;
+
+    printf("  ║ 📚 Symbol Tables              ║\n");
+    printf("  ╠═══════════════════════════════╣\n");
+
+    SymbolTablesList* symbolTablesList = scope_manager->symbol_tables;
+    int scope_count = 0;
+    while (symbolTablesList != NULL){
+        printf("  ║ 📦 Scope %2d:                  ║\n", scope_count++);
+        print_symbol_table(symbolTablesList->local_vars);
+        symbolTablesList = symbolTablesList->prev;
+    }
+    printf("  ╠═══════════════════════════════╣\n");
 }
 
 // Free the entire symbol table
@@ -296,7 +322,7 @@ void free_symbol_table(SymbolTable* table) {
 
 
 
-int fake_main(){
+/*int fake_main(){
     ScopeManager* scope_manager = create_scope_manager();
     call_function(scope_manager, create_symbol_table(100));
 
@@ -337,7 +363,7 @@ int fake_main(){
     return_to_prev_function(scope_manager);
     printf("Now back to main scope\n");
     res = lookup_symbol(scope_manager,hello);
-    /*printf("%s = %d\n",res->name,*(int*)(res->value));
+    printf("%s = %d\n",res->name,*(int*)(res->value));
 
     res = lookup_symbol(scope_manager,hello2);
     printf("%s = %d\n",res->name,*(int*)(res->value));
@@ -360,5 +386,5 @@ int fake_main(){
     res = lookup_symbol(scope_manager,hello2);
     printf("%p\n",res);
 
-    destroy_scope_manager(scope_manager);*/
-}
+    destroy_scope_manager(scope_manager);
+}*/

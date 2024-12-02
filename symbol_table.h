@@ -27,6 +27,7 @@ typedef struct {
 } ScopeManager;
 
 void print_symbol_type(full_type_t *t);
+void print_symbol_tables(ScopeManager* scope_manager);
 SymbolTablesList* create_symbol_tables_list(SymbolTable* local_vars);
 SymbolTablesList* add_scope(SymbolTablesList* current, SymbolTable* new_symbol_table,bool is_new_function);
 SymbolTablesList* return_func_update_symbol_tables_list(SymbolTablesList* current);
@@ -36,8 +37,8 @@ ScopeManager* create_scope_manager();
 void destroy_scope_manager(ScopeManager* scope_manager);
 void return_to_prev_function(ScopeManager* scope_manager);
 void call_function(ScopeManager* scope_manager,SymbolTable* arguments);
-void enter_new_scope(ScopeManager* scope_manager);
-void exit_scope(ScopeManager* scope_manager);
+void enter_new_scope_scope_manager(ScopeManager* scope_manager);
+void exit_scope_scope_manager(ScopeManager* scope_manager);
 unsigned int hash(const char* key, int table_size);
 SymbolTable* create_symbol_table(int size);
 bool insert_symbol(ScopeManager* scope_manager, const char* name, full_type_t *type, int address, bool is_global);
@@ -48,4 +49,4 @@ bool update_symbol(ScopeManager* scopeManager, const char* name, int address, fu
 void free_symbol_table(SymbolTable* table);
 bool insert_symbol_in_table(SymbolTable* table, const char* name, full_type_t *type, int address);
 bool insert_param_in_symbol_table(ASTNode* curr_param, SymbolTable* table,int* stack_pointer);
-int num_fun_calls(ScopeManager* scope_manager);
+int num_symbol_tables(ScopeManager* scope_manager);
