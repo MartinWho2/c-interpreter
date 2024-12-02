@@ -89,7 +89,7 @@ void exit_scope_scope_manager(ScopeManager* scope_manager){
 unsigned int hash(const char* key, int table_size) {
     unsigned int hash_value = 0;
     while (*key) {
-        hash_value = (hash_value * 31) + *key++;
+        hash_value = (hash_value * 33) + *key++;
     }
     return hash_value % table_size;
 }

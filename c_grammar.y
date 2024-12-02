@@ -296,10 +296,10 @@ type_specifier
 declarator
 	: IDENTIFIER
 		{$$ = create_identifier($1);}
-	| declarator '[' logical_or_expression ']'
-		{$$ = create_array_declaration($1, $3);}
-	| declarator '[' ']'
-		{$$ = create_array_declaration($1, NULL);}
+	| IDENTIFIER '[' logical_or_expression ']'
+		{$$ = create_array_declaration(create_identifier($1), $3);}
+	| IDENTIFIER '[' ']'
+		{$$ = create_array_declaration(create_identifier($1), NULL);}
 	;
 
 pointer
@@ -324,12 +324,12 @@ parameter_declaration
 initializer
 	: assignment_expression
 	| '{' initializer_list '}'
-	{$$ = $2;}
+	{$$ = create_array_init_list($2);}
 	;
 
 initializer_list
-	: initializer
-	| initializer ',' initializer_list
+	: assignment_expression
+	| assignment_expression ',' initializer_list
 		{$$ = create_list($1,$3,NODE_INIT_LIST);}
 	;
 
@@ -350,6 +350,7 @@ block
 line
     : declaration
     | statement
+    | compound_statement
     ;
 
 compound_statement

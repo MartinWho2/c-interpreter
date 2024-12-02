@@ -4,7 +4,7 @@
 #include "global_manager.h"
 #define VOID_VALUE (Value){0,{NODE_VOID,0},0}
 
-#define DEBUG 1
+int DEBUG = 0;
 
 ASTNode RETURN_VOID =  (ASTNode){NODE_RETURN,.data.return_stmt.value=NULL};
 
@@ -701,7 +701,7 @@ ASTNode* return_void(ASTNode* fun_def){
         snprintf(s,299,"Function %s misses a return with non-void return type",fun_def->data.function_def.name);
         error_out(fun_def, s);
     }
-    return &RETURN_VOID;
+    return NULL;
 }
 // return 1 if should return void, 0 otherwise
 int handle_end_of_block(GlobalManager* globalManager, ASTNode** curr_instr_list_ptr){
@@ -721,7 +721,6 @@ int handle_end_of_block(GlobalManager* globalManager, ASTNode** curr_instr_list_
 
     // We reached the end of out block
     while (next == NULL || is_loop(current_flow_type)) {
-        int already_exited = 0;
         if (is_loop(current_flow_type)) {
             // exit scope to evaluate value with only outer for / while
             switch (current_flow_type) {
@@ -733,7 +732,10 @@ int handle_end_of_block(GlobalManager* globalManager, ASTNode** curr_instr_list_
                             *curr_instr_list_ptr = next;
                             return 0;
                         }
-                        already_exited = 1;
+                        last_flow_elem = get_last(globalManager->flow_manager);
+                        current_flow_type = last_flow_elem->flow_type;
+                        current = last_flow_elem->ast_node;
+                        next = last_flow_elem->next_node;
                         break;
                     }
                     *curr_instr_list_ptr = current->data.while_loop.body->data.compound_stmt.block;
@@ -751,7 +753,10 @@ int handle_end_of_block(GlobalManager* globalManager, ASTNode** curr_instr_list_
                             *curr_instr_list_ptr = next;
                             return 0;
                         }
-                        already_exited = 1;
+                        last_flow_elem = get_last(globalManager->flow_manager);
+                        current_flow_type = last_flow_elem->flow_type;
+                        current = last_flow_elem->ast_node;
+                        next = last_flow_elem->next_node;
                         break;
                     }
                     *curr_instr_list_ptr = current->data.for_loop.body->data.compound_stmt.block;
@@ -766,16 +771,53 @@ int handle_end_of_block(GlobalManager* globalManager, ASTNode** curr_instr_list_
             current = last_flow_elem->ast_node;
             next = last_flow_elem->next_node;
             // If a function was called for the block, just return void since there was no return value
-            if (!already_exited){
-                if (current_flow_type == FLOW_FUNC_CALL){return 1;}
-                exit_scope(globalManager);
-            }
+            if (current_flow_type == FLOW_FUNC_CALL){return 1;}
+            exit_scope(globalManager);
         }
     }
     *curr_instr_list_ptr = next;
     return 0;
 }
-
+static inline void declare(GlobalManager* globalManager, ASTNode* curr_instr){
+    if (curr_instr->data.declaration.name->type == NODE_ARRAY_DECLARATION){
+        ASTNode *left = curr_instr->data.declaration.name;
+        char* name = left->data.array_declaration.name->data.identifier.name;
+        ValueOrAddress size = eval_expr(globalManager,left->data.array_declaration.size);
+        if (size.value.type.type != NODE_INT || size.value.type.n_pointers != 0)
+            error_out(curr_instr,"size of array can only be integer");
+        if (!curr_instr->data.declaration.value){
+            declare_new_array_without_value(globalManager,name,*curr_instr->data.declaration.type,
+                                            size.value.value.i);
+        }else{
+            size_t len = 0;
+            Value *values = get_array_init_res(globalManager,curr_instr->data.declaration.value,
+                                                        &len);
+            if (len == 1){
+                declare_new_array_with_constant_value(globalManager,name,*curr_instr->data.declaration.type,
+                                                      size.value.value.i,values[0]);
+            }else{
+                declare_new_array_with_some_values(globalManager,name,*curr_instr->data.declaration.type,
+                                                   size.value.value.i,values,(int)len);
+            }
+        }
+    }else if (curr_instr->data.declaration.value){
+        ValueOrAddress v = eval_expr(globalManager,curr_instr->data.declaration.value);
+        if (v.value.type.type != curr_instr->data.declaration.type->type ||
+            v.value.type.n_pointers != curr_instr->data.declaration.type->n_pointers
+                ){
+            fprintf(stderr,"[ERROR] Assigning a value of type ");
+            print_type(v.value.type,0);
+            fprintf(stderr,"To the variable %s, of type ",curr_instr->data.declaration.name->data.identifier.name);
+            print_type(*curr_instr->data.declaration.type,0);
+            exit(1);
+        }
+        declare_new_variable(globalManager,curr_instr->data.declaration.name->data.identifier.name,v.value);
+    }else{
+        declare_new_variable_without_value(globalManager,
+                                           curr_instr->data.declaration.name->data.identifier.name,
+                                           *curr_instr->data.declaration.type);
+    }
+}
 
 ASTNode* execute_function(GlobalManager *globalManager,ASTNode *fun_def){
     error_on_wrong_node(NODE_FUNCTION_DEF,fun_def->type,"execute_function");
@@ -802,7 +844,8 @@ ASTNode* execute_function(GlobalManager *globalManager,ASTNode *fun_def){
             print_global_manager_state(globalManager);
             printf("--------------------\n\n");
         }
-        //sleep(1);
+        if (DEBUG)
+            sleep(1);
 
 
         switch (curr_instr->type){
@@ -827,16 +870,27 @@ ASTNode* execute_function(GlobalManager *globalManager,ASTNode *fun_def){
             case NODE_INSTRUCTION_LIST:
             case NODE_TOP_LEVEL_LIST:
             case NODE_DECLARATOR_LIST:
+                ASTNode* curr_dec;
+                ASTNode *decs = curr_instr;
+                while (decs->type == NODE_DECLARATOR_LIST){
+                    curr_dec = decs->data.arg_list.arg;
+                    declare(globalManager,curr_dec);
+                    decs = decs->data.arg_list.next;
+                }
+                declare(globalManager,decs);
+                if (curr_instr_list->type == NODE_INSTRUCTION_LIST)
+                    curr_instr_list = curr_instr_list->data.arg_list.next;
+                break;
             case NODE_INIT_LIST:
             case NODE_ARG_LIST:
             case NODE_PARAM_DECLARATION:
             case NODE_ARRAY_DECLARATION:
             case NODE_FUNCTION_DEF:
+            case NODE_ARRAY_INIT:
                 error_out(curr_instr,"Should not be here");
                 break;
             case NODE_DECLARATION:
-                ValueOrAddress v = eval_expr(globalManager,curr_instr->data.declaration.value);
-                declare_new_variable(globalManager,curr_instr->data.declaration.name->data.identifier.name,v.value);
+                declare(globalManager,curr_instr);
                 if (curr_instr_list->type == NODE_INSTRUCTION_LIST)
                     curr_instr_list = curr_instr_list->data.arg_list.next;
                 break;
@@ -909,10 +963,25 @@ ASTNode* execute_function(GlobalManager *globalManager,ASTNode *fun_def){
                 curr_instr_list = curr_instr->data.for_loop.body->data.compound_stmt.block;
                 break;
             case NODE_CONTINUE:
+                FlowElement *flow_elem = get_last(globalManager->flow_manager);
+                while (!is_loop(flow_elem->flow_type) && flow_elem->flow_type != FLOW_FUNC_CALL){
+                    exit_scope(globalManager);
+                    flow_elem = get_last(globalManager->flow_manager);
+                }
+                if (flow_elem->flow_type == FLOW_FUNC_CALL){
+                    error_out(curr_instr,"continue outside of a loop");
+                }
                 curr_instr_list = NULL;
-                continue;
+                break;
             case NODE_BREAK:
-                FlowElement *flow_elem = pop_until_last_loop(globalManager->flow_manager);
+                flow_elem = get_last(globalManager->flow_manager);
+                while (!is_loop(flow_elem->flow_type) && flow_elem->flow_type != FLOW_FUNC_CALL){
+                    exit_scope(globalManager);
+                    flow_elem = get_last(globalManager->flow_manager);
+                }
+                if (flow_elem->flow_type == FLOW_FUNC_CALL){
+                    error_out(curr_instr,"continue outside of a loop");
+                }
                 curr_instr_list = flow_elem->next_node;
                 // exit the scope from the init of the for loop
                 if (flow_elem->flow_type == FLOW_FOR)
@@ -926,16 +995,37 @@ ASTNode* execute_function(GlobalManager *globalManager,ASTNode *fun_def){
         }
     }
 }
-void execute_code(GlobalManager* globalManager){
+void execute_code(GlobalManager* globalManager, int debug){
+    DEBUG = debug;
     ASTNode *main = find_function(globalManager,"main");
     ASTNode *func_call = create_function_call(create_identifier("main"),NULL);
     call_function_total(globalManager,main,func_call);
-    print_global_manager_state(globalManager);
+    if (DEBUG)
+        print_global_manager_state(globalManager);
     ASTNode * ret = execute_function(globalManager,main);
     ValueOrAddress final_result = return_function_total(globalManager,ret,*main->data.function_def.type);
-    printf("Process returned with value : \n");
+    printf("\n\nProcess returned with value : \n");
     print_value(final_result.value);
 }
+Value *get_array_init_res(GlobalManager *globalManager,ASTNode *array_init, size_t* out_len){
+    error_on_wrong_node(NODE_ARRAY_INIT,array_init->type,"get_array_init_res");
+    ASTNode *array = array_init->data.array_init.array;
+    size_t size = list_size(array);
+    *out_len = size;
+    Value * values = calloc(size,sizeof (Value));
+    ASTNode *current;
+    int i = 0;
+    while (array->type == NODE_INIT_LIST){
+        current = array->data.arg_list.arg;
+        values[i++] = eval_expr(globalManager,current).value;
+        array = array->data.arg_list.next;
+    }
+    values[i++] = eval_expr(globalManager,array).value;
+    if (i != size){ fprintf(stderr,"wtf %d (i) != %zu (size) ?",i,size);exit(1);}
+    return values;
+}
+
+
 // This has side effects such as evaluating x in a[x], where x could be "b=12", so b we will be assigned the value 12
 // BE CAREFUL TO NEVER CALL TWICE ON SAME NODE !!
 ValueOrAddress eval_expr(GlobalManager *global_manager,ASTNode* ast_node){
@@ -969,8 +1059,43 @@ ValueOrAddress eval_expr(GlobalManager *global_manager,ASTNode* ast_node){
             add_correct_value_type_to_v(new_type,element_ptr,&result);
             ValueOrAddress ret = {result,1,final_ptr};
             return ret;
+        case NODE_ARRAY_INIT:
+            error_out(ast_node,"Array initialization has a special function");
         case NODE_FUNCTION_CALL:
             char* fun_name = ast_node->data.function_call.function->data.identifier.name;
+            if (strcmp(fun_name,"printf") == 0){
+                size_t size = list_size(ast_node->data.function_call.args);
+                ValueOrAddress args[size];
+                ASTNode *list_elem = ast_node->data.function_call.args;
+                for (int i = 0; i < size-1; ++i) {
+                    args[i] = eval_expr(global_manager,list_elem->data.arg_list.arg);
+                    list_elem = list_elem->data.arg_list.next;
+                }
+                args[size-1] = eval_expr(global_manager,list_elem);
+                handle_printf_call(global_manager,args,size);
+                return (ValueOrAddress){VOID_VALUE,0,-1};
+            }else if (strcmp(fun_name,"sleep") == 0){
+                size_t size = list_size(ast_node->data.function_call.args);
+                if (size != 1){ error_out(ast_node,"sleep function requires one int input");}
+                ValueOrAddress time = eval_expr(global_manager,ast_node->data.function_call.args);
+                if (time.value.type.type != NODE_INT || time.value.type.n_pointers != 0)
+                    error_out(ast_node,"sleep function requires one int input");
+                sleep(time.value.value.i);
+                return (ValueOrAddress){VOID_VALUE,0,-1};
+            }else if (strcmp(fun_name,"debug") == 0){
+                print_global_manager_state(global_manager);
+                return (ValueOrAddress){VOID_VALUE,0,-1};
+            }else if (strcmp(fun_name,"sizeof") == 0){
+                size_t size = list_size(ast_node->data.function_call.args);
+                if (size != 1){ error_out(ast_node,"sizeof function requires one int input");}
+                ValueOrAddress value = eval_expr(global_manager,ast_node->data.function_call.args);
+                Value ret = {0,{NODE_INT,0},type_size(&value.value.type)};
+                return (ValueOrAddress){ret,0,-1};
+
+            }
+            if (strcmp("is_prime",fun_name)==0){
+                int x = 0xdeb00;
+            }
             ASTNode * func_def = find_function(global_manager,fun_name);
             call_function_total(global_manager,func_def,ast_node);
             ASTNode* ret_call = execute_function(global_manager,func_def);
@@ -978,11 +1103,6 @@ ValueOrAddress eval_expr(GlobalManager *global_manager,ASTNode* ast_node){
             return func_call_result;
         case NODE_UNARY_OP:
             return eval_unary_op(global_manager,ast_node);
-        case NODE_INIT_LIST:
-            fprintf(stderr,"init list not implemented");
-            exit(1);
-            // TODO init the list and returns the pointer
-            break;
         case NODE_BINARY_OP:
             return eval_binary_op(global_manager,ast_node);
         case NODE_ASSIGNMENT:
@@ -992,6 +1112,7 @@ ValueOrAddress eval_expr(GlobalManager *global_manager,ASTNode* ast_node){
         case NODE_ARG_LIST:
         case NODE_DECLARATOR_LIST:
         case NODE_DECLARATION:
+        case NODE_INIT_LIST:
         case NODE_TOP_LEVEL_LIST:
         case NODE_ARRAY_DECLARATION:
         case NODE_PARAM_DECLARATION:
@@ -1008,6 +1129,307 @@ ValueOrAddress eval_expr(GlobalManager *global_manager,ASTNode* ast_node){
             print_node_type(ast_node->type);
             exit(1);
     }
+}
+// Enum to track format specifier types
+typedef enum {
+    FORMAT_INT,     // %d
+    FORMAT_FLOAT,   // %f
+    FORMAT_CHAR,    // %c
+    FORMAT_STRING,  // %s
+    FORMAT_PTR     // %p
+} FormatSpecifierType;
+
+// Structure to hold parse results
+typedef struct {
+    FormatSpecifierType* types;  // Array of expected types
+    char** strings_middle;       // Strings between types
+    int count;                   // Number of expected arguments
+} FormatParseResult;
+char* unescape_string(const char* escaped_str, int original_length, int* out_len) {
+    // Allocate memory for the unescaped string (same length or potentially shorter)
+    char* unescaped_str = malloc(original_length + 1);
+    if (unescaped_str == NULL) {
+        return NULL;  // Memory allocation failed
+    }
+    int final_length = original_length;
+
+    size_t i = 0;  // Index for escaped string
+    size_t j = 0;  // Index for unescaped string
+
+    while (original_length > 0) {
+        if (escaped_str[i] == '\\') {
+            // Handle escape sequences
+            switch (escaped_str[i + 1]) {
+                case 'n':  // Newline
+                    unescaped_str[j++] = '\n';
+                    i += 2;
+                    break;
+                case 'r':  // Carriage return
+                    unescaped_str[j++] = '\r';
+                    i += 2;
+                    break;
+                case 't':  // Tab
+                    unescaped_str[j++] = '\t';
+                    i += 2;
+                    break;
+                case '0':  // Null terminator
+                    unescaped_str[j++] = '\0';
+                    i += 2;
+                    break;
+                case '\\':  // Backslash
+                    unescaped_str[j++] = '\\';
+                    i += 2;
+                    break;
+                case '"':  // Double quote
+                    unescaped_str[j++] = '"';
+                    i += 2;
+                    break;
+                case '\'':  // Single quote
+                    unescaped_str[j++] = '\'';
+                    i += 2;
+                    break;
+                default:
+                    // If it's not a recognized escape sequence,
+                    // just copy the backslash and the next character
+                    unescaped_str[j++] = escaped_str[i++];
+                    unescaped_str[j++] = escaped_str[i++];
+                    break;
+            }
+            final_length--;
+            original_length -= 2;
+        } else {
+            // Copy regular characters
+            unescaped_str[j++] = escaped_str[i++];
+            original_length--;
+        }
+    }
+
+    // Null-terminate the string
+    unescaped_str[j+1] = '\0';
+    *out_len = final_length;
+    return unescaped_str;
+}
+
+// Function to parse format string
+FormatParseResult parse_printf_format(char* format) {
+    FormatParseResult result = {NULL, NULL,0};
+
+    // First pass: count the number of format specifiers
+    int specifier_count = 0;
+    for (const char* ptr = format; *ptr; ptr++) {
+        if (*ptr == '\\'){
+            ptr++;
+            switch (*ptr) {
+                case 'n':
+                case 't':
+                case 'r':
+                case '0':
+                    break;
+                default:
+                    fprintf(stderr,"\\%c is not recognized",*ptr);
+                    exit(1);
+            }
+        }
+        if (*ptr == '%') {
+            ptr++;
+            // Count only if it's a valid specifier
+            switch (*ptr) {
+                case 'd':
+                case 'i':
+                case 'f':
+                case 'F':
+                case 'c':
+                case 's':
+                case 'p':
+                    specifier_count++;
+                    break;
+                case '%':
+                default:
+                    fprintf(stderr,"[ERROR] Wrong print format (%%%c)",*ptr);
+                    exit(1);
+            }
+        }
+    }
+
+    // Allocate space for types if we found any specifiers
+    if (specifier_count > 0) {
+        result.types = calloc(specifier_count,sizeof(FormatSpecifierType));
+        result.strings_middle = calloc( specifier_count + 1,sizeof(char*));
+        result.count = specifier_count;
+
+        // Second pass: identify types and extract middle strings
+        int type_index = 0;
+        char* current = format;
+        size_t middle_index = 0;
+
+        while (*current) {
+            // Find the start of a format specifier or end of string
+            char* specifier_start = strchr(current, '%');
+
+            if (specifier_start == NULL) {
+                // No more format specifiers, save the rest as the last middle string
+                int final_len = 0;
+                result.strings_middle[middle_index] = unescape_string(current, strlen(current),&final_len);
+                result.strings_middle[middle_index][final_len] = '\0';
+                break;
+            }
+
+            // Copy the text before the format specifier
+            size_t prefix_len = specifier_start - current;
+            int final_len = 0;
+            result.strings_middle[middle_index] = unescape_string(current,prefix_len,&final_len);
+            result.strings_middle[middle_index][final_len] = '\0';
+            middle_index++;
+
+            // Move past the %
+            specifier_start++;
+
+            // Identify specifier type
+            switch (*specifier_start) {
+                case 'd':
+                case 'i':
+                    result.types[type_index++] = FORMAT_INT;
+                    break;
+                case 'f':
+                case 'F':
+                    result.types[type_index++] = FORMAT_FLOAT;
+                    break;
+                case 'c':
+                    result.types[type_index++] = FORMAT_CHAR;
+                    break;
+                case 's':
+                    result.types[type_index++] = FORMAT_STRING;
+                    break;
+                case 'p':
+                    result.types[type_index++] = FORMAT_PTR;
+                    break;
+                default:
+                    fprintf(stderr, "[ERROR] Unsupported format specifier: %c", *specifier_start);
+                    exit(1);
+            }
+
+            // Move to next position after specifier
+            current = specifier_start + 1;
+        }
+    }else{
+        result.strings_middle = calloc( 1,sizeof(char*));
+        int out_len = 0;
+        result.strings_middle[0] = unescape_string(format, strlen(format),&out_len);
+        result.strings_middle[0][out_len] = '\0';
+    }
+
+    return result;
+}
+
+
+
+// Wrapper function to handle different argument types for printf
+int handle_printf_call(GlobalManager *globalManager,ValueOrAddress* args, int num_args) {
+    // Sanity check
+    if (num_args < 1) {
+        fprintf(stderr, "Printf called with no arguments\n");
+        return -1;
+    }
+
+    char* format;
+    if (args[0].value.type.type != NODE_CHAR || args[0].value.type.n_pointers != 1){
+        fprintf(stderr,"printf requires a string format as first element");
+        exit(1);
+    }
+    if (args[0].value.is_constant){
+        format = (char*)args[0].value.value.ptr;
+    }else{
+        format = get_raw_ptr_for_var(globalManager->memory_manager,args[0].value.value.i);
+    }
+
+    FormatParseResult printfFormat = parse_printf_format(format);
+    char* chars = calloc(1,1000);
+    int sp = 0;
+
+    // Process each argument according to its type
+    for (int i = 1; i < num_args; i++) {
+        if (args[i].value.type.n_pointers > 0){
+            chars[sp++] = (char)((args[i].value.value.i >> 24) & 0xFF);
+            chars[sp++] = (char)((args[i].value.value.i >> 16) & 0xFF);
+            chars[sp++] = (char)((args[i].value.value.i >> 16) & 0xFF);
+            chars[sp++] = (char)((args[i].value.value.i) & 0xFF);
+            continue;
+        }
+        switch (args[i].value.type.type) {
+            case NODE_INT:
+                chars[sp++] = (char)((args[i].value.value.i >> 24) & 0xFF);
+                chars[sp++] = (char)((args[i].value.value.i >> 16) & 0xFF);
+                chars[sp++] = (char)((args[i].value.value.i >> 8) & 0xFF);
+                chars[sp++] = (char)((args[i].value.value.i) & 0xFF);
+                break;
+            case NODE_FLOAT:
+                chars[sp++] = (char)((*(int*)&(args[i].value.value.f) >> 24) & 0xFF);
+                chars[sp++] = (char)((*(int*)&(args[i].value.value.f) >> 16) & 0xFF);
+                chars[sp++] = (char)((*(int*)&(args[i].value.value.f) >> 8) & 0xFF);
+                chars[sp++] = (char)((*(int*)&(args[i].value.value.f)) & 0xFF);
+                break;
+            case NODE_CHAR:
+                chars[sp++] = args[i].value.value.c;
+                break;
+            default:
+                fprintf(stderr, "Unsupported type in printf\n");
+                exit(1);
+        }
+    }
+    sp = 0;
+    for (int i = 0; i < printfFormat.count; ++i) {
+        if (printfFormat.strings_middle[i])
+            printf(printfFormat.strings_middle[i]);
+        FormatSpecifierType curr_format = printfFormat.types[i];
+        switch (curr_format) {
+            case FORMAT_INT:
+                int i = 0;
+                for (int j = 0; j < 4; ++j) {
+                    i <<= 8;
+                    i |= chars[sp++] & 0xFF;
+                }
+                printf("%d",i);
+                break;
+            case FORMAT_FLOAT:
+                i = 0;
+                for (int j = 0; j < 4; ++j) {
+                    i <<= 8;
+                    i |= chars[sp++] & 0xFF;
+                }
+                printf("%f",*(float*)&(i));
+                break;
+            case FORMAT_CHAR:
+                printf("%c",chars[sp++]);
+                break;
+            case FORMAT_PTR:
+                i = 0;
+                for (int j = 0; j < 4; ++j) {
+                    i <<= 8;
+                    i |= chars[sp++] & 0xFF;
+                }
+                printf("%x",i);
+                break;
+            case FORMAT_STRING:
+                i = 0;
+                for (int j = 0; j < 4; ++j) {
+                    i <<= 8;
+                    i |= chars[sp++] & 0xFF;
+                }
+                char* ptr = get_raw_ptr_for_var(globalManager->memory_manager,i);
+                printf("%s",ptr);
+                break;
+        }
+    }
+    fflush(stdout);
+    if (printfFormat.strings_middle[printfFormat.count])
+        printf(printfFormat.strings_middle[printfFormat.count]);
+    for (int i = 0; i <= printfFormat.count; ++i) {
+        free(printfFormat.strings_middle[i]);
+    }
+    free(printfFormat.strings_middle);
+    free(printfFormat.types);
+    free(chars);
+    return 0;
 }
 
 SymbolTable * construct_symbol_table_for_function_call(ASTNode* function_def,MemoryManager* memory_manager){
@@ -1094,6 +1516,7 @@ void declare_new_variable(GlobalManager* global_manager, const char* name, Value
     void *var_ptr = get_raw_ptr_for_var(global_manager->memory_manager,address);
     if (value.type.n_pointers> 0){
         *(int*)var_ptr = value.value.i;
+        return;
     }
     switch (value.type.type) {
         case NODE_INT:*(int*)var_ptr = value.value.i;break;
@@ -1101,6 +1524,91 @@ void declare_new_variable(GlobalManager* global_manager, const char* name, Value
         case NODE_VOID:fprintf(stderr,"Tried to declare a variable of type void ??");exit(1);
         case NODE_CHAR:*(char*)var_ptr = value.value.c;break;
     }
+}
+
+void declare_new_variable_without_value(GlobalManager* global_manager, const char* name, full_type_t type){
+    if (type.type == NODE_VOID && type.n_pointers == 0){
+        fprintf(stderr,"Tried to declare a variable of type void ??");exit(1);
+    }
+    int address = declare_new_variable_in_memory(global_manager->memory_manager,&type);
+    insert_symbol(global_manager->scope_manager,name,&type,address,false);
+}
+
+void declare_new_array_without_value(GlobalManager* globalManager, const char* name, full_type_t type, int n_elems){
+    int address = create_buffer(globalManager->memory_manager,&type,n_elems);
+    Value ptr_value = (Value){0,{type.type,type.n_pointers+1},.value.i=address};
+    declare_new_variable(globalManager,name,ptr_value);
+}
+
+// int a[20] = {1,2};
+void declare_new_array_with_constant_value(GlobalManager* globalManager, const char* name, full_type_t type, int n_elems, Value value){
+    int address = create_buffer(globalManager->memory_manager,&type,n_elems);
+    Value ptr_value = (Value){0,{type.type,type.n_pointers+1},.value.i=address};
+    declare_new_variable(globalManager,name,ptr_value);
+    void* raw_ptr = get_raw_ptr_for_var(globalManager->memory_manager,address);
+#define MEMSET_WITH_TYPE(type,value)\
+    do{                       \
+        type* casted_ptr = (type*)raw_ptr; \
+        for (int i = 0; i < n_elems;i++){ \
+            casted_ptr[i] = (type)value;   \
+        }\
+    }while(0)
+
+    if (type.n_pointers > 0){
+        MEMSET_WITH_TYPE(int,value.value.i);
+    }else{
+        switch (type.type) {
+            case NODE_INT:
+                MEMSET_WITH_TYPE(int,value.value.i);
+                break;
+            case NODE_FLOAT:
+                MEMSET_WITH_TYPE(float,value.value.f);
+                break;
+            case NODE_VOID:
+                fprintf(stderr,"Array of void ? Are you out of your mind ?");
+                exit(1);
+            case NODE_CHAR:
+                memset(raw_ptr, value.value.c,n_elems);
+                break;
+        }
+    }
+}
+void declare_new_array_with_some_values(GlobalManager* globalManager,const char* name, full_type_t type, int buf_n_elems, Value* values, int n_values){
+    if (n_values > buf_n_elems){
+        fprintf(stderr,"Initializing a buffer with more values than its size ??\n");
+        exit(1);
+    }
+    int address = create_buffer(globalManager->memory_manager,&type,buf_n_elems);
+    Value ptr_value = (Value){0,{type.type,type.n_pointers+1},.value.i=address};
+    declare_new_variable(globalManager,name,ptr_value);
+    void* raw_ptr = get_raw_ptr_for_var(globalManager->memory_manager,address);
+    for (int i = 0; i < n_values; ++i) {
+        Value cur_val = values[i];
+        if (type.type != cur_val.type.type || type.n_pointers != cur_val.type.n_pointers){
+            fprintf(stderr,"Initializing a buffer with values of wrong type ??\n");
+            exit(1);
+        }
+        if (type.n_pointers > 0){
+            ((int*)raw_ptr)[i] = cur_val.value.i;
+        }else{
+            switch (type.type) {
+                case NODE_INT:
+                    ((int*)raw_ptr)[i] = cur_val.value.i;break;
+                case NODE_FLOAT:
+                    ((float*)raw_ptr)[i] = cur_val.value.f;break;
+                case NODE_CHAR:
+                    ((char*)raw_ptr)[i] = cur_val.value.c;break;
+                case NODE_VOID:
+                    fprintf(stderr,"value of type void");
+                    exit(1);
+                    break;
+            }
+        }
+    }
+    int remaining_size = (buf_n_elems - n_values) * type_size(&type);
+    void* s = raw_ptr + n_values * type_size(&type);
+    // Setting the rest to 0
+    memset(s,0,remaining_size);
 }
 
 void print_memory(GlobalManager* global_manager) {

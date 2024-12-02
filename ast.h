@@ -19,7 +19,7 @@ typedef enum {
     NODE_INSTRUCTION_LIST,
 
     NODE_BLOCK,
-
+    NODE_ARRAY_INIT,
     NODE_BINARY_OP,
     NODE_ASSIGNMENT,
     NODE_DECLARATION,
@@ -239,6 +239,11 @@ typedef struct ASTNode {
             struct ASTNode *body;
         } function_def;
 
+        // For array init
+        struct{
+            struct ASTNode *array;
+        } array_init;
+
     } data;
     
     // Source location for error reporting
@@ -267,6 +272,7 @@ ASTNode* create_for_loop(ASTNode* init, ASTNode* condition, ASTNode* effect, AST
 ASTNode* create_jump(NodeType type);
 ASTNode* create_return_stmt(ASTNode* value);
 ASTNode* create_function_def(full_type_t* full_type, char* name, ASTNode* parameters, ASTNode* body);
+ASTNode* create_array_init_list(ASTNode* list_init);
 
 void free_ast(ASTNode* node);
 void print_ast(ASTNode* node, int indent);
@@ -278,6 +284,7 @@ void print_value(Value v);
 int type_size(full_type_t* full_type);
 int is_void_value(Value* v);
 int is_zero(ValueOrAddress* v);
+size_t list_size(ASTNode* list);
 
 void error_on_wrong_node(NodeType expected, NodeType actual, const char *function_name);
 void error_out(ASTNode* current_node, const char* error_message);

@@ -9,15 +9,19 @@ FS			(f|F|l|L)
 #include <string.h>
 #include "ast.h"
 #include "y.tab.h"
-
+#define ECHO   do { if (DEBUG_MAIN) fwrite(yytext, yyleng, 1, yyout); } while (0);
 
 void count();
 Value* parse_num(const char* text);
 Value* parse_float(const char* text);
-Value* parse_string(const char* text);
+Value* parse_string(char* text);
 Value* parse_float_or_int(const char* text);
 Value* parse_char(const char* text);
+extern int DEBUG_MAIN;
+
+
 %}
+
 
 %%
 "/*"			{ comment(); }
@@ -174,11 +178,12 @@ Value* parse_float_or_int(const char* s){
 	}
 	return parse_num(s);
 }
-Value* parse_string(const char* s){
+Value* parse_string(char* s){
 	Value* value = malloc(sizeof (Value));
 	full_type_t full_type = {NODE_CHAR,1};
 	value->type = full_type;
-	value->value.ptr = strdup(s);
+	value->value.ptr = strdup(s+1);
+	((char*)(value->value.ptr))[strlen(s)-2] = '\0';
 	value->is_constant = 1;
 	return value;
 }

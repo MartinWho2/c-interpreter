@@ -169,7 +169,12 @@ ASTNode* create_function_def(full_type_t* full_type, char* name, ASTNode* parame
     node->data.function_def.body = body;
     return node;
 }
-
+ASTNode* create_array_init_list(ASTNode* list_init){
+    ASTNode *node = malloc(sizeof(ASTNode));
+    node->type = NODE_ARRAY_INIT;
+    node->data.array_init.array = list_init;
+    return node;
+}
 // Helper function to print indentation
 static void print_indent(int indent) {
     for (int i = 0; i < indent; i++) {
@@ -468,7 +473,10 @@ void print_ast(ASTNode* node, int indent) {
             printf("Body:\n");
             print_ast(node->data.function_def.body, indent + 2);
             break;
-
+        case NODE_ARRAY_INIT:
+            print_indent(indent);
+            printf("Array init\n");
+            print_ast(node->data.array_init.array,indent);
         default:
             print_indent(indent);
             printf("Unhandled Node Type: %d\n", node->type);
@@ -552,6 +560,9 @@ void print_node_type(NodeType node_type){
         case NODE_INSTRUCTION_LIST:
             printf("Instruction list\n");
             break;
+        case NODE_ARRAY_INIT:
+            printf("Array init\n");
+            break;
     }
 }
 
@@ -616,6 +627,27 @@ int is_zero(ValueOrAddress* v){
             return v->value.value.c == 0;
     }
 }
+
+size_t list_size(ASTNode* list){
+    size_t s = 0;
+    if (!list) return s;
+    while (1){
+        switch (list->type) {
+            case NODE_PARAM_LIST:
+            case NODE_DECLARATOR_LIST:
+            case NODE_INIT_LIST:
+            case NODE_ARG_LIST:
+            case NODE_TOP_LEVEL_LIST:
+            case NODE_INSTRUCTION_LIST:
+                s++;
+                list = list->data.arg_list.next;
+                break;
+            default:
+                return s+1;
+        }
+    }
+}
+
 
 void error_on_wrong_node(NodeType expected, NodeType actual, const char *function_name) {
     if (expected == actual) return;

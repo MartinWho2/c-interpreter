@@ -45,24 +45,40 @@ void destroy_memory_manager(MemoryManager* memory_manager){
     free(memory_manager);
 }
 
+void increase_memory(MemoryManager* memory_manager){
+    memory_manager->size_memory *= 2;
+    void* new_base = realloc(memory_manager->base_of_stack,memory_manager->size_memory);
+    if (new_base == NULL){
+        fprintf(stderr,"[Error] in allocating a bigger stack for your program");
+        exit(1);
+    }
+    memory_manager->base_of_stack = new_base;
 
+}
+
+int create_buffer(MemoryManager *memory_manager,full_type_t* full_type, int n_elems){
+    int size = type_size(full_type) * n_elems;
+    if (size < 0 || size > 100000000){
+        fprintf(stderr,"[ERROR] Buffer wayyy too big, OVERFLOW...");
+    }
+    int buffer_address = memory_manager->stack_pointer;
+    memory_manager->stack_pointer += size;
+    while (memory_manager->stack_pointer >= memory_manager->size_memory){
+        increase_memory(memory_manager);
+    }
+    return buffer_address;
+}
 
 int declare_new_variable_in_memory(MemoryManager * memory_manager, full_type_t* full_type){
     int size = type_size(full_type);
     int address_for_variable = memory_manager->stack_pointer;
     memory_manager->stack_pointer = memory_manager->stack_pointer + size;
-    if (memory_manager->stack_pointer >= memory_manager->size_memory){
-        memory_manager->size_memory *= 2;
-        void* new_base = realloc(memory_manager->base_of_stack,memory_manager->size_memory);
-        if (new_base == NULL){
-            fprintf(stderr,"[Error] in allocating a bigger stack for your program");
-            destroy_memory_manager(memory_manager);
-            exit(1);
-        }
-        memory_manager->base_of_stack = new_base;
+    while (memory_manager->stack_pointer >= memory_manager->size_memory){
+        increase_memory(memory_manager);
     }
     return address_for_variable;
 }
+
 
 void set_stack_pointer_to_curr_frame_pointer(MemoryManager * memory_manager){
     memory_manager->stack_pointer = memory_manager->frame_list->current_frame_pointer;

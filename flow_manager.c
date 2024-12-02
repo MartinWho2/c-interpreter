@@ -63,7 +63,7 @@ void pop_flow_until_last_func_call(FlowManager* flow_manager){
             exit(1);
         }
         free(flow_element);
-        flow_element = flow_manager->flow_element_stack[stack_pointer--];
+        flow_element = flow_manager->flow_element_stack[--stack_pointer];
     }
     flow_manager->stack_pointer = stack_pointer;
     free(flow_element);
@@ -93,7 +93,7 @@ ASTNode *get_last_loop(FlowManager* flow_manager){
     return flow_element->ast_node;
 }
 
-//
+// removes elements until arriving to a loop, which is NOT removed but returned for ease of use
 FlowElement *pop_until_last_loop(FlowManager* flow_manager){
     int stack_pointer = flow_manager->stack_pointer-1;
     FlowElement *flow_element = flow_manager->flow_element_stack[stack_pointer];
