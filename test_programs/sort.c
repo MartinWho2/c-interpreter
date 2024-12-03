@@ -16,31 +16,29 @@ void bubble_sort(int *arr, int size) {
 }
 
 int main() {
-    int numbers[10];
-    int i;
-
+    int size = 200;
+    int numbers[size];
+    int state = 0xabcdef;
+    int mod = 0xdeadc0ed;
+    int a = 3;
+    int b = 0x12345678;
+    for (int j = 0; j < size; ++j) {
+        numbers[j] = state;
+        state = (state* a + b) % mod;
+    }
     // Initialize array with some values
-    numbers[0] = 64;
-    numbers[1] = 34;
-    numbers[2] = 25;
-    numbers[3] = 12;
-    numbers[4] = 22;
-    numbers[5] = 11;
-    numbers[6] = 90;
-    numbers[7] = 54;
-    numbers[8] = 33;
-    numbers[9] = 5;
 
     printf("Original array: ");
-    for (i = 0; i < 10; i++) {
+    for (int i = 0; i < size; i++) {
         printf("%d ", numbers[i]);
     }
     printf("\n");
+    gg = 17;
 
-    bubble_sort(numbers, 10);
+    bubble_sort(numbers, size);
 
     printf("Sorted array: ");
-    for (i = 0; i < 10; i++) {
+    for (int i = 0; i < size; i++) {
         printf("%d ", numbers[i]);
     }
     printf("\n");

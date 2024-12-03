@@ -25,7 +25,12 @@ void destroy_global_manager(GlobalManager* globalManager){
     destroy_memory_manager(globalManager->memory_manager);
     destroy_scope_manager(globalManager->scope_manager);
     destroy_flow_manager(globalManager->flow_manager);
+    for (int i = 0; i < globalManager->n_funcs; ++i) {
+        free(globalManager->function_defs[i]);
+    }
+    free(globalManager->function_defs);
     free(globalManager);
+
 }
 
 int count_function_defs(GlobalManager* global_manager){
@@ -71,9 +76,10 @@ void register_all_functions(GlobalManager* global_manager) {
 }
 
 
-void enter_new_scope(GlobalManager* global_manager, ASTNode* instruction, ASTNode* next_instruction){
+void enter_new_scope(GlobalManager *global_manager, ASTNode *instruction, ASTNode *next_instruction, int is_fun_call) {
     MemoryManager * memory_manager = global_manager->memory_manager;
-    enter_new_scope_scope_manager(global_manager->scope_manager);
+    if (!is_fun_call)
+        enter_new_scope_scope_manager(global_manager->scope_manager);
     FrameList *new_frame_list = add_new_frame_list(memory_manager->frame_list,memory_manager->stack_pointer);
     memory_manager->frame_list = new_frame_list;
     push_node(global_manager->flow_manager,instruction,next_instruction);
@@ -82,7 +88,7 @@ void enter_new_scope(GlobalManager* global_manager, ASTNode* instruction, ASTNod
 void call_function_total(GlobalManager *global_manager,ASTNode* fun_def, ASTNode* fun_call){
     MemoryManager * memory_manager = global_manager->memory_manager;
     ScopeManager * scope_manager = global_manager->scope_manager;
-    enter_new_scope(global_manager,fun_call,NULL);
+    enter_new_scope(global_manager, fun_call, NULL, 1);
     SymbolTable * from_args = construct_symbol_table_for_function_call(fun_def,memory_manager);
     insert_arguments_from_func_call(global_manager,from_args,fun_def,fun_call);
     call_function(scope_manager,from_args);
@@ -319,13 +325,15 @@ ValueOrAddress eval_binary_op(GlobalManager* global_manager,ASTNode* binary_op) 
                 (type_right.n_pointers > 0 && type_left.type != NODE_INT))
                 error_out(binary_op, "Cannot add a pointer with a non-integer value");
             if (type_left.n_pointers > 0) {
-                int size = type_size(&type_left);
+                full_type_t underlying_type = {type_left.type, type_left.n_pointers-1};
+                int size = type_size(&underlying_type);
                 int new_addr = size * val_right.value.value.i + val_left.value.value.i;
                 ret_value = (Value) {0, type_left, .value.i=new_addr};
             } else if (type_right.n_pointers > 0) {
-                int size = type_size(&type_right);
-                int new_addr = size * val_right.value.value.i + val_left.value.value.i;
-                ret_value = (Value) {0, type_left, .value.i=new_addr};
+                full_type_t underlying_type = {type_right.type, type_right.n_pointers-1};
+                int size = type_size(&underlying_type);
+                int new_addr = size * val_left.value.value.i + val_right.value.value.i;
+                ret_value = (Value) {0, type_right, .value.i=new_addr};
             } else {
                 if (type_left.type == type_right.type) {
                     ret_value = (Value) {0, type_left, 0};
@@ -353,10 +361,12 @@ ValueOrAddress eval_binary_op(GlobalManager* global_manager,ASTNode* binary_op) 
                 if (type_right.n_pointers > 0) {
                     // Pointer - Pointer (should return integer difference)
                     ret_value = (Value) {0, (full_type_t) {NODE_INT, 0}, 0};
-                    ret_value.value.i = val_left.value.value.i - val_right.value.value.i;
+                    full_type_t underlying_type = {type_left.type, type_left.n_pointers-1};
+                    ret_value.value.i = (val_left.value.value.i - val_right.value.value.i)/ type_size(&underlying_type);
                 } else {
                     // Pointer - Integer
-                    int size = type_size(&type_left);
+                    full_type_t underlying_type = {type_left.type, type_left.n_pointers-1};
+                    int size = type_size(&underlying_type);
                     int new_addr = val_left.value.value.i - size * val_right.value.value.i;
                     ret_value = (Value) {0, type_left, .value.i = new_addr};
                 }
@@ -739,7 +749,7 @@ int handle_end_of_block(GlobalManager* globalManager, ASTNode** curr_instr_list_
                         break;
                     }
                     *curr_instr_list_ptr = current->data.while_loop.body->data.compound_stmt.block;
-                    enter_new_scope(globalManager,current,next);
+                    enter_new_scope(globalManager, current, next, 0);
                     return 0;
                 case FLOW_FOR:
                     // evaluate effect (i.e. i++ 99% of time)
@@ -760,7 +770,7 @@ int handle_end_of_block(GlobalManager* globalManager, ASTNode** curr_instr_list_
                         break;
                     }
                     *curr_instr_list_ptr = current->data.for_loop.body->data.compound_stmt.block;
-                    enter_new_scope(globalManager,current,next);
+                    enter_new_scope(globalManager, current, next, 0);
                     return 0;
                 default:
                     error_out(*curr_instr_list_ptr, "impossible error");
@@ -864,7 +874,7 @@ ASTNode* execute_function(GlobalManager *globalManager,ASTNode *fun_def){
             case NODE_BLOCK:
                 ASTNode *next_instr = next_instruction(curr_instr_list);
                 curr_instr_list = curr_instr->data.compound_stmt.block;
-                enter_new_scope(globalManager,curr_instr,next_instr);
+                enter_new_scope(globalManager, curr_instr, next_instr, 0);
                 break;
             case NODE_PARAM_LIST:
             case NODE_INSTRUCTION_LIST:
@@ -900,14 +910,14 @@ ASTNode* execute_function(GlobalManager *globalManager,ASTNode *fun_def){
                     // Set next instruction for control flow
                     next_instr = next_instruction(curr_instr_list);
                     curr_instr_list = curr_instr->data.if_stmt.if_body->data.compound_stmt.block;
-                    enter_new_scope(globalManager, curr_instr,next_instr);
+                    enter_new_scope(globalManager, curr_instr, next_instr, 0);
                 }else {
                     ASTNode* else_node = curr_instr->data.if_stmt.else_body;
                     while (else_node != NULL && else_node->type == NODE_IF){
                         val = eval_expr(globalManager,else_node->data.if_stmt.condition);
                         if(!is_zero(&val)){
                             next_instr = next_instruction(curr_instr_list);
-                            enter_new_scope(globalManager,curr_instr,next_instr);
+                            enter_new_scope(globalManager, curr_instr, next_instr, 0);
                             curr_instr_list = curr_instr->data.if_stmt.if_body->data.compound_stmt.block;
                             break;
                         }else{
@@ -918,7 +928,7 @@ ASTNode* execute_function(GlobalManager *globalManager,ASTNode *fun_def){
                         if (else_node){
                             next_instr = next_instruction(curr_instr_list);
                             curr_instr_list = else_node->data.compound_stmt.block;
-                            enter_new_scope(globalManager,curr_instr,next_instr);
+                            enter_new_scope(globalManager, curr_instr, next_instr, 0);
                         }else{
                             // no condition was true and no empty-else => skip if
                             if (curr_instr_list->type == NODE_INSTRUCTION_LIST)
@@ -929,37 +939,41 @@ ASTNode* execute_function(GlobalManager *globalManager,ASTNode *fun_def){
                 break;
             case NODE_WHILE:
                 ValueOrAddress condition = eval_expr(globalManager,curr_instr->data.while_loop.condition);
-                if (is_zero(&condition)) { break; }
+                if (is_zero(&condition)) {
+                    if (curr_instr_list->type == NODE_INSTRUCTION_LIST)
+                        curr_instr_list = curr_instr_list->data.arg_list.next;
+                    break;
+                }
                 // no break because same
             case NODE_DO_WHILE:
                 next_instr = next_instruction(curr_instr_list);
                 curr_instr_list = curr_instr->data.while_loop.body->data.compound_stmt.block;
-                enter_new_scope(globalManager,curr_instr,next_instr);
+                enter_new_scope(globalManager, curr_instr, next_instr, 0);
                 break;
             case NODE_FOR:
                 // scope for variable declaration of init
                 ASTNode block_of_init = (ASTNode){NODE_BLOCK,.data.compound_stmt.block=curr_instr->data.for_loop.init,0,0};
-                enter_new_scope(globalManager,&block_of_init,NULL);
+                enter_new_scope(globalManager, &block_of_init, NULL, 0);
                 ASTNode *init = curr_instr->data.for_loop.init;
                 // the init declares a variable
                 if (init->type == NODE_DECLARATOR_LIST || init->type == NODE_DECLARATION){
                     ASTNode *decls = init;
-                    ASTNode *curr_decl;
                     while (decls->type == NODE_DECLARATOR_LIST){
-                        curr_decl = decls->data.arg_list.arg;
-                        ValueOrAddress v = eval_expr(globalManager,curr_decl->data.declaration.value);
-                        declare_new_variable(globalManager,curr_decl->data.declaration.name->data.identifier.name,v.value);
+                        declare(globalManager,decls->data.arg_list.arg);
                         decls = decls->data.arg_list.next;
                     }
-                    ValueOrAddress v = eval_expr(globalManager,decls->data.declaration.value);
-                    declare_new_variable(globalManager,decls->data.declaration.name->data.identifier.name,v.value);
+                    declare(globalManager,decls);
                 }else{
                     eval_expr(globalManager,init);
                 }
                 condition = eval_expr(globalManager,curr_instr->data.for_loop.condition);
-                if (is_zero(&condition)) { exit_scope(globalManager);break; }
+                if (is_zero(&condition)) {
+                    exit_scope(globalManager);
+                    if (curr_instr_list->type == NODE_INSTRUCTION_LIST)
+                        curr_instr_list = curr_instr_list->data.arg_list.next;
+                    break; }
                 next_instr = next_instruction(curr_instr_list);
-                enter_new_scope(globalManager,curr_instr,next_instr);
+                enter_new_scope(globalManager, curr_instr, next_instr, 0);
                 curr_instr_list = curr_instr->data.for_loop.body->data.compound_stmt.block;
                 break;
             case NODE_CONTINUE:
@@ -992,20 +1006,68 @@ ASTNode* execute_function(GlobalManager *globalManager,ASTNode *fun_def){
                 break;
             case NODE_RETURN:
                 return curr_instr->data.return_stmt.value;
+            case NODE_CAST:
+                eval_expr(globalManager,curr_instr);
         }
     }
 }
+
+void execute_globals(GlobalManager* globalManager){
+    ASTNode *instr_list = globalManager->root;
+    ASTNode *curr_instr;
+    while (instr_list->type == NODE_TOP_LEVEL_LIST){
+        curr_instr = instr_list->data.arg_list.arg;
+        if (curr_instr->type == NODE_DECLARATION){
+            declare(globalManager,curr_instr);
+        }else if (curr_instr->type == NODE_DECLARATOR_LIST){
+            while(curr_instr->type == NODE_DECLARATOR_LIST){
+                declare(globalManager,curr_instr->data.arg_list.arg);
+                curr_instr = curr_instr->data.arg_list.next;
+            }
+            error_on_wrong_node(NODE_DECLARATION,curr_instr->type,"eval_globals");
+            declare(globalManager,curr_instr);
+        }else{
+            error_on_wrong_node(NODE_FUNCTION_DEF,curr_instr->type,"eval_global");
+        }
+        instr_list = instr_list->data.arg_list.next;
+    }
+    if (instr_list->type != NODE_FUNCTION_DEF){
+        declare(globalManager,instr_list);
+    }
+}
+
 void execute_code(GlobalManager* globalManager, int debug){
     DEBUG = debug;
+    execute_globals(globalManager);
     ASTNode *main = find_function(globalManager,"main");
-    ASTNode *func_call = create_function_call(create_identifier("main"),NULL);
-    call_function_total(globalManager,main,func_call);
+    ASTNode main_id = (ASTNode){NODE_IDENTIFIER,.data.identifier.name="main",0,0};
+    ASTNode func_call = {NODE_FUNCTION_CALL,.data.function_call={&main_id,NULL},0,0};
+    call_function_total(globalManager,main,&func_call);
     if (DEBUG)
         print_global_manager_state(globalManager);
     ASTNode * ret = execute_function(globalManager,main);
     ValueOrAddress final_result = return_function_total(globalManager,ret,*main->data.function_def.type);
-    printf("\n\nProcess returned with value : \n");
-    print_value(final_result.value);
+    printf("\n[EXITING]\nProcess returned with given value: (");
+    print_type(final_result.value.type,0);
+
+    if (final_result.value.type.n_pointers > 0){
+        printf(") %d\n",final_result.value.value.i);
+        return;
+    }
+    switch (final_result.value.type.type) {
+        case NODE_INT:
+            printf(") %d\n",final_result.value.value.i);
+            break;
+        case NODE_FLOAT:
+            printf(") %f\n",final_result.value.value.f);
+            break;
+        case NODE_VOID:
+            printf(") \n");
+            break;
+        case NODE_CHAR:
+            printf(") %c\n",final_result.value.value.c);
+            break;
+    }
 }
 Value *get_array_init_res(GlobalManager *globalManager,ASTNode *array_init, size_t* out_len){
     error_on_wrong_node(NODE_ARRAY_INIT,array_init->type,"get_array_init_res");
@@ -1093,9 +1155,6 @@ ValueOrAddress eval_expr(GlobalManager *global_manager,ASTNode* ast_node){
                 return (ValueOrAddress){ret,0,-1};
 
             }
-            if (strcmp("is_prime",fun_name)==0){
-                int x = 0xdeb00;
-            }
             ASTNode * func_def = find_function(global_manager,fun_name);
             call_function_total(global_manager,func_def,ast_node);
             ASTNode* ret_call = execute_function(global_manager,func_def);
@@ -1107,6 +1166,48 @@ ValueOrAddress eval_expr(GlobalManager *global_manager,ASTNode* ast_node){
             return eval_binary_op(global_manager,ast_node);
         case NODE_ASSIGNMENT:
             return eval_assignment(global_manager,ast_node);
+        case NODE_CAST:
+            full_type_t *type = ast_node->data.cast.cast_type;
+            ValueOrAddress operand_evaluated = eval_expr(global_manager,ast_node->data.cast.operand);
+            full_type_t prev_type = operand_evaluated.value.type;
+            if (type->n_pointers != prev_type.n_pointers)
+                error_out(ast_node,"Cannot cast two values with different levels of indirection");
+            if (type->n_pointers > 0){
+                return (ValueOrAddress){{0,*type,.value.i=operand_evaluated.value.value.i}};
+            }
+            Value cast_ret = {0, *type,0};
+            switch (type->type) {
+                case NODE_INT:
+                    if (prev_type.type == NODE_FLOAT){
+                        cast_ret.value.i = (int)operand_evaluated.value.value.f;
+                    }else if(prev_type.type == NODE_CHAR){
+                        cast_ret.value.i = (int)operand_evaluated.value.value.c;
+                    }else{
+                        cast_ret.value.i = operand_evaluated.value.value.i;
+                    }
+                    break;
+                case NODE_FLOAT:
+                    if (prev_type.type == NODE_INT){
+                        cast_ret.value.f = (float)operand_evaluated.value.value.i;
+                    }else if (prev_type.type == NODE_CHAR){
+                        cast_ret.value.f = (float)operand_evaluated.value.value.c;
+                    }else{
+                        cast_ret.value.f = operand_evaluated.value.value.f;
+                    }
+                    break;
+                case NODE_VOID:
+                    error_out(ast_node,"Cannot cast to void");
+                case NODE_CHAR:
+                    if (prev_type.type == NODE_FLOAT){
+                        cast_ret.value.c = (char)operand_evaluated.value.value.f;
+                    }else if (prev_type.type == NODE_INT){
+                        cast_ret.value.c = (char)operand_evaluated.value.value.i;
+                    }else{
+                        cast_ret.value.c = operand_evaluated.value.value.c;
+                    }
+                    break;
+            }
+            return (ValueOrAddress){cast_ret,0,-1};
         case NODE_PARAM_LIST:
         case NODE_BLOCK:
         case NODE_ARG_LIST:
@@ -1205,7 +1306,7 @@ char* unescape_string(const char* escaped_str, int original_length, int* out_len
     }
 
     // Null-terminate the string
-    unescaped_str[j+1] = '\0';
+    unescaped_str[j] = '\0';
     *out_len = final_length;
     return unescaped_str;
 }
@@ -1343,82 +1444,110 @@ int handle_printf_call(GlobalManager *globalManager,ValueOrAddress* args, int nu
     }
 
     FormatParseResult printfFormat = parse_printf_format(format);
-    char* chars = calloc(1,1000);
-    int sp = 0;
+    MemoryManager *memory_manager = globalManager->memory_manager;
+    int saved_sp = memory_manager->stack_pointer;
+    // biggest type -> upper bound on size pushed
+    full_type_t ptr_type = {NODE_INT,1};
+    globalManager->memory_manager->stack_pointer += (num_args-1) * type_size(&ptr_type);
+
+    increase_memory_if_needed(globalManager->memory_manager);
+    char* chars = (char*)(memory_manager->base_of_stack);
 
     // Process each argument according to its type
-    for (int i = 1; i < num_args; i++) {
+    for (int i = num_args-1; i > 0; i--) {
         if (args[i].value.type.n_pointers > 0){
-            chars[sp++] = (char)((args[i].value.value.i >> 24) & 0xFF);
-            chars[sp++] = (char)((args[i].value.value.i >> 16) & 0xFF);
-            chars[sp++] = (char)((args[i].value.value.i >> 16) & 0xFF);
-            chars[sp++] = (char)((args[i].value.value.i) & 0xFF);
+            chars[saved_sp++] = (char)((args[i].value.value.i >> 0) & 0xFF);
+            chars[saved_sp++] = (char)((args[i].value.value.i >> 8) & 0xFF);
+            chars[saved_sp++] = (char)((args[i].value.value.i >> 16) & 0xFF);
+            chars[saved_sp++] = (char)((args[i].value.value.i >> 24) & 0xFF);
             continue;
         }
         switch (args[i].value.type.type) {
             case NODE_INT:
-                chars[sp++] = (char)((args[i].value.value.i >> 24) & 0xFF);
-                chars[sp++] = (char)((args[i].value.value.i >> 16) & 0xFF);
-                chars[sp++] = (char)((args[i].value.value.i >> 8) & 0xFF);
-                chars[sp++] = (char)((args[i].value.value.i) & 0xFF);
+                chars[saved_sp++] = (char)((args[i].value.value.i) & 0xFF);
+                chars[saved_sp++] = (char)((args[i].value.value.i >> 8) & 0xFF);
+                chars[saved_sp++] = (char)((args[i].value.value.i >> 16) & 0xFF);
+                chars[saved_sp++] = (char)((args[i].value.value.i >> 24) & 0xFF);
                 break;
             case NODE_FLOAT:
-                chars[sp++] = (char)((*(int*)&(args[i].value.value.f) >> 24) & 0xFF);
-                chars[sp++] = (char)((*(int*)&(args[i].value.value.f) >> 16) & 0xFF);
-                chars[sp++] = (char)((*(int*)&(args[i].value.value.f) >> 8) & 0xFF);
-                chars[sp++] = (char)((*(int*)&(args[i].value.value.f)) & 0xFF);
+                chars[saved_sp++] = (char)((*(int*)&(args[i].value.value.f) >> 0) & 0xFF);
+                chars[saved_sp++] = (char)((*(int*)&(args[i].value.value.f) >> 8) & 0xFF);
+                chars[saved_sp++] = (char)((*(int*)&(args[i].value.value.f) >> 16) & 0xFF);
+                chars[saved_sp++] = (char)((*(int*)&(args[i].value.value.f) >> 24) & 0xFF);
                 break;
             case NODE_CHAR:
-                chars[sp++] = args[i].value.value.c;
+                chars[saved_sp++] = args[i].value.value.c;
                 break;
             default:
                 fprintf(stderr, "Unsupported type in printf\n");
                 exit(1);
         }
     }
-    sp = 0;
+    memory_manager->stack_pointer += saved_sp;
+    int written = 0;
     for (int i = 0; i < printfFormat.count; ++i) {
         if (printfFormat.strings_middle[i])
-            printf(printfFormat.strings_middle[i]);
+            written += printf(printfFormat.strings_middle[i]);
         FormatSpecifierType curr_format = printfFormat.types[i];
         switch (curr_format) {
             case FORMAT_INT:
+                if (saved_sp < 4) {
+                    fprintf(stderr,"Popping too many elements from printf, got out of stack");
+                    exit(1);
+                }
                 int i = 0;
                 for (int j = 0; j < 4; ++j) {
                     i <<= 8;
-                    i |= chars[sp++] & 0xFF;
+                    i |= chars[--saved_sp] & 0xFF;
                 }
-                printf("%d",i);
+                written += printf("%d",i);
                 break;
             case FORMAT_FLOAT:
+                if (saved_sp < 4) {
+                    fprintf(stderr,"Popping too many elements from printf, got out of stack");
+                    exit(1);
+                }
                 i = 0;
                 for (int j = 0; j < 4; ++j) {
                     i <<= 8;
-                    i |= chars[sp++] & 0xFF;
+                    i |= chars[--saved_sp] & 0xFF;
                 }
-                printf("%f",*(float*)&(i));
+                written += printf("%f",*(float*)&(i));
                 break;
             case FORMAT_CHAR:
-                printf("%c",chars[sp++]);
+                if (saved_sp < 1) {
+                    fprintf(stderr,"Popping too many elements from printf, got out of stack");
+                    exit(1);
+                }
+                printf("%c",chars[--saved_sp]);
                 break;
             case FORMAT_PTR:
+                if (saved_sp < 4) {
+                    fprintf(stderr,"Popping too many elements from printf, got out of stack");
+                    exit(1);
+                }
                 i = 0;
                 for (int j = 0; j < 4; ++j) {
                     i <<= 8;
-                    i |= chars[sp++] & 0xFF;
+                    i |= chars[--saved_sp] & 0xFF;
                 }
-                printf("%x",i);
+                written += printf("%x",i);
                 break;
             case FORMAT_STRING:
+                if (saved_sp < 4) {
+                    fprintf(stderr,"Popping too many elements from printf, got out of stack");
+                    exit(1);
+                }
                 i = 0;
                 for (int j = 0; j < 4; ++j) {
                     i <<= 8;
-                    i |= chars[sp++] & 0xFF;
+                    i |= chars[--saved_sp] & 0xFF;
                 }
                 char* ptr = get_raw_ptr_for_var(globalManager->memory_manager,i);
-                printf("%s",ptr);
+                written += printf("%s",ptr);
                 break;
         }
+        memory_manager->stack_pointer = saved_sp;
     }
     fflush(stdout);
     if (printfFormat.strings_middle[printfFormat.count])
@@ -1428,22 +1557,25 @@ int handle_printf_call(GlobalManager *globalManager,ValueOrAddress* args, int nu
     }
     free(printfFormat.strings_middle);
     free(printfFormat.types);
-    free(chars);
     return 0;
 }
 
 SymbolTable * construct_symbol_table_for_function_call(ASTNode* function_def,MemoryManager* memory_manager){
     error_on_wrong_node(NODE_FUNCTION_DEF,function_def->type,"create_symbol_table_for_func_call");
-    SymbolTable * symbol_table = create_symbol_table(100);
+    SymbolTable * symbol_table = create_symbol_table(5);
     ASTNode * params = function_def->data.function_def.parameters;
     if (!params) return symbol_table;
     while (params->type == NODE_PARAM_LIST){
         ASTNode * curr_param = params->data.arg_list.arg;
-        insert_param_in_symbol_table(curr_param,symbol_table,&(memory_manager->stack_pointer));
+        SymbolTable *table = insert_param_in_symbol_table(curr_param,symbol_table,&(memory_manager->stack_pointer));
+        if (table)
+            symbol_table = table;
+        increase_memory_if_needed(memory_manager);
         params = params->data.arg_list.next;
     }
-    insert_param_in_symbol_table(params,symbol_table,&(memory_manager->stack_pointer));
-    return symbol_table;
+    SymbolTable *table = insert_param_in_symbol_table(params,symbol_table,&(memory_manager->stack_pointer));
+    increase_memory_if_needed(memory_manager);
+    return table ? table : symbol_table;
 }
 
 
@@ -1509,10 +1641,10 @@ Value get_value(GlobalManager* global_manager,const char* name){
         case NODE_CHAR:value.value.c = *(char*)raw_ptr;return value;
     }
 }
-// TODO GLOBAL VARIABLES SHOULD NOT BE STORED IN THE STACK !!!!! Create a new memory for just globals
+
 void declare_new_variable(GlobalManager* global_manager, const char* name, Value value){
     int address = declare_new_variable_in_memory(global_manager->memory_manager,&value.type);
-    insert_symbol(global_manager->scope_manager,name,&value.type,address,false);
+    insert_symbol(global_manager->scope_manager, name, &value.type, address);
     void *var_ptr = get_raw_ptr_for_var(global_manager->memory_manager,address);
     if (value.type.n_pointers> 0){
         *(int*)var_ptr = value.value.i;
@@ -1531,7 +1663,7 @@ void declare_new_variable_without_value(GlobalManager* global_manager, const cha
         fprintf(stderr,"Tried to declare a variable of type void ??");exit(1);
     }
     int address = declare_new_variable_in_memory(global_manager->memory_manager,&type);
-    insert_symbol(global_manager->scope_manager,name,&type,address,false);
+    insert_symbol(global_manager->scope_manager, name, &type, address);
 }
 
 void declare_new_array_without_value(GlobalManager* globalManager, const char* name, full_type_t type, int n_elems){
@@ -1631,7 +1763,7 @@ void print_memory(GlobalManager* global_manager) {
     printf("  ║   ");
     for (int i = 0; i < stack_pointer; ++i) {
         if (i > 0 && i % 16 == 0) {
-            printf("\n  ║   ");
+            printf(" ║ \n  ║   ");
         }
         printf("%02x ", base_of_stack[i]);
     }

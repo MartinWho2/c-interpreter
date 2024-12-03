@@ -19,15 +19,14 @@ int bit_reverse(int n) {
 }
 
 int main() {
-    int fib_nums[10];
-    int reversed_nums[10];
+    int fib_nums[30];
+    int reversed_nums[30];
     int i;
 
-    for (i = 0; i < 10; i++) {
-        fib_nums[i] = fibonacci(i);
+    for (i = 0; i < 22; i++) {
+        fib_nums[i] = fibonacci(10+i);
         reversed_nums[i] = bit_reverse(fib_nums[i]);
         printf("Fib(%d) = %d, Bit Reversed = %d\n", i, fib_nums[i], reversed_nums[i]);
     }
-
     return 0;
 }

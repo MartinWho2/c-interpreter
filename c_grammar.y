@@ -66,7 +66,7 @@ ASTNode* root = NULL;
 %type <node> declaration
 %type <node> init_declarator init_declarator_list
 %type <type_type> type_specifier
-%type <node> declarator block line
+%type <node> cast_expression declarator block line
 %type <token> pointer
 %type <node> parameter_list
 %type <node> parameter_declaration
@@ -83,7 +83,7 @@ ASTNode* root = NULL;
 
 primary_expression
 	: IDENTIFIER
-        {$$ = create_identifier(yylval.string);}
+        {$$ = create_identifier(yylval.string);free(yylval.string);}
 	| CONSTANT
         {$$ = create_constant($1);}
 	| STRING_LITERAL
@@ -121,7 +121,7 @@ unary_expression
 		{$$ = create_un_op($2,NODE_INC_PRE);}
 	| DEC_OP unary_expression
 		{$$ = create_un_op($2,NODE_DEC_PRE);}
-	| unary_operator unary_expression
+	| unary_operator cast_expression
 		{$$ = create_un_op($2, $1);}
 	;
 
@@ -147,14 +147,20 @@ type_name
 		{$$ = create_type($1,$2);}
 	;
 
-multiplicative_expression
+cast_expression
 	: unary_expression
+	| '(' type_name ')' cast_expression
+	  	{$$ = create_cast($4,$2);}
+	;
+
+multiplicative_expression
+	: cast_expression
 		{$$ = $1;}
-	| multiplicative_expression '*' unary_expression
+	| multiplicative_expression '*' cast_expression
 		{$$ = create_bin_op($1, $3, NODE_MUL);}
-	| multiplicative_expression '/' unary_expression
+	| multiplicative_expression '/' cast_expression
 		{$$ = create_bin_op($1, $3, NODE_DIV);}
-	| multiplicative_expression '%' unary_expression
+	| multiplicative_expression '%' cast_expression
 		{$$ = create_bin_op($1, $3, NODE_MOD);}
 	;
 

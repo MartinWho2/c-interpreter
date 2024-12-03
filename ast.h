@@ -20,6 +20,7 @@ typedef enum {
 
     NODE_BLOCK,
     NODE_ARRAY_INIT,
+    NODE_CAST,
     NODE_BINARY_OP,
     NODE_ASSIGNMENT,
     NODE_DECLARATION,
@@ -158,11 +159,10 @@ typedef struct ASTNode {
             struct ASTNode *next;
         } arg_list;
 
-        // For full types (type_t + n_pointers)
         struct {
-            type_t type;
-            int n_pointers;
-        } full_type;
+            struct full_type_t *cast_type;
+            struct ASTNode* operand;
+        } cast;
 
         // For binary operations
         struct {
@@ -259,6 +259,7 @@ ASTNode* create_function_call(ASTNode* function, ASTNode* args);
 ASTNode* create_un_op(ASTNode* operand, un_operator operator);
 ASTNode* create_list(ASTNode* arg, ASTNode* next, NodeType type);
 full_type_t * create_type(type_t type, int n_pointers);
+ASTNode *create_cast(ASTNode *value, full_type_t* type);
 ASTNode* create_bin_op(ASTNode* left, ASTNode* right,bin_operator operator);
 ASTNode* create_assignment(ASTNode* left, ASTNode* right, assign_operator operator);
 ASTNode* create_declaration(ASTNode* name, full_type_t * full_type, ASTNode* value);

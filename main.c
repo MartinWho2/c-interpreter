@@ -26,10 +26,11 @@ int main(int argc, char *argv[]) {
 
     if (argc >= 3 && strcmp(argv[2],"DEBUG") == 0){
         DEBUG_MAIN = 1;
+        printf("\nINPUT PROGRAM\n================================\n");
     }
-    printf("\nINPUT PROGRAM\n================================\n");
     int result = yyparse();
-    printf("\n=======================\n");
+    if (DEBUG_MAIN)
+        printf("\n=======================\n");
 
 
     if (result == 0) {
@@ -41,17 +42,7 @@ int main(int argc, char *argv[]) {
         }
         GlobalManager * global_manager = create_global_manager(root);
         execute_code(global_manager,DEBUG_MAIN);
-        // Here you can:
-        // 1. Generate code from the AST
-        // generate_code(root);
-
-        // 2. Interpret the AST directly
-        // interpret_ast(root);
-
-        // 3. Perform optimizations
-        // optimize_ast(root);
-
-        // Don't forget to clean up
+        destroy_global_manager(global_manager);
     } else {
         printf("Parsing failed!\n");
     }

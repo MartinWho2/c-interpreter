@@ -52,7 +52,7 @@ extern int DEBUG_MAIN;
 '(\\.|[^\\'])'	{ count(); yylval.value = parse_char(yytext); return(CONSTANT); }
 
 
-\"(\\.|[^\\"])*\"	{ count(); yylval.value = parse_string(yytext);return(STRING_LITERAL); }
+\"(\\.|[^\\"])*\"	{ count(); yylval.value = parse_string(yytext);/*THIS IS VERY BAD TODO CHANGE TO HAVE SAME STRINGS STORED ON STACK*/return(STRING_LITERAL); }
 
 ">>="			{ count(); return(RIGHT_ASSIGN); }
 "<<="			{ count(); return(LEFT_ASSIGN); }
@@ -115,16 +115,17 @@ comment()
 	char c, c1;
 
 loop:
-	while ((c = input()) != '*' && c != 0)
-		putchar(c);
-
+	while ((c = input()) != '*' && c != 0){
+	    if (DEBUG_MAIN)
+		    putchar(c);
+    }
 	if ((c1 = input()) != '/' && c != 0)
-	{
-		unput(c1);
+	{   if (DEBUG_MAIN)
+		    unput(c1);
 		goto loop;
 	}
 
-	if (c != 0)
+	if (c != 0 && DEBUG_MAIN)
 		putchar(c1);
 }
 

@@ -57,6 +57,14 @@ full_type_t * create_type(type_t t, int n_pointers){
     return full_type;
 }
 
+ASTNode *create_cast(ASTNode *operand,full_type_t* type){
+    ASTNode *node = malloc(sizeof(ASTNode));
+    node->type = NODE_CAST;
+    node->data.cast.operand = operand;
+    node->data.cast.cast_type = type;
+    return node;
+}
+
 ASTNode* create_bin_op(ASTNode* left, ASTNode* right,bin_operator operator) {
     ASTNode* node = malloc(sizeof(ASTNode));
     node->type = NODE_BINARY_OP;
@@ -189,7 +197,10 @@ void print_type(full_type_t full_type, int indent){
         case NODE_VOID:  printf("void"); break;
         case NODE_CHAR:  printf("char");break;
     }
-    printf(" (pointers: %d)\n", full_type.n_pointers);
+    for (int i = 0; i < full_type.n_pointers; ++i) {
+        printf("*");
+    }
+    //printf("\n");
 }
 // Recursive function to print the AST
 void print_ast(ASTNode* node, int indent) {
@@ -602,7 +613,8 @@ int type_size(full_type_t* full_type){
         case NODE_FLOAT:
             return 4;
         case NODE_VOID:
-            return 0;
+            fprintf(stderr,"size of void ???");
+            exit(1);
     }
 }
 

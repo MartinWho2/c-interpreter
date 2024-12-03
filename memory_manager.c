@@ -40,7 +40,6 @@ MemoryManager * create_memory_manager(){
 void destroy_memory_manager(MemoryManager* memory_manager){
     destroy_frame_list(memory_manager->frame_list);
     // Free all stack memory of interpreted program
-    fprintf(stderr,"Warning all memory of the program will been freed now.\n");
     free(memory_manager->base_of_stack);
     free(memory_manager);
 }
@@ -55,11 +54,17 @@ void increase_memory(MemoryManager* memory_manager){
     memory_manager->base_of_stack = new_base;
 
 }
+// BE CAREFUL THAT BASE OF STACK MIGHT BE CHANGED AFTER THIS CALL, SO DON'T SAVE IT BEFORE
+void increase_memory_if_needed(MemoryManager* memoryManager){
+    if (memoryManager->stack_pointer >= 0.9 * memoryManager->size_memory)
+        increase_memory(memoryManager);
+}
 
 int create_buffer(MemoryManager *memory_manager,full_type_t* full_type, int n_elems){
     int size = type_size(full_type) * n_elems;
-    if (size < 0 || size > 100000000){
+    if (size < 0){
         fprintf(stderr,"[ERROR] Buffer wayyy too big, OVERFLOW...");
+        exit(1);
     }
     int buffer_address = memory_manager->stack_pointer;
     memory_manager->stack_pointer += size;

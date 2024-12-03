@@ -41,12 +41,13 @@ void enter_new_scope_scope_manager(ScopeManager* scope_manager);
 void exit_scope_scope_manager(ScopeManager* scope_manager);
 unsigned int hash(const char* key, int table_size);
 SymbolTable* create_symbol_table(int size);
-bool insert_symbol(ScopeManager* scope_manager, const char* name, full_type_t *type, int address, bool is_global);
+
+bool insert_symbol(ScopeManager *scope_manager, const char *name, full_type_t *type, int address);
 SymbolEntry* lookup_symbol(ScopeManager* scope_manager, const char* name);
 SymbolEntry* lookup_symbol_in_table(SymbolTable* table, const char* name);
 bool remove_symbol(SymbolTable* table, const char* name);
 bool update_symbol(ScopeManager* scopeManager, const char* name, int address, full_type_t *type);
 void free_symbol_table(SymbolTable* table);
-bool insert_symbol_in_table(SymbolTable* table, const char* name, full_type_t *type, int address);
-bool insert_param_in_symbol_table(ASTNode* curr_param, SymbolTable* table,int* stack_pointer);
+SymbolTable *insert_symbol_in_table(SymbolTable* table, const char* name, full_type_t *type, int address);
+SymbolTable *insert_param_in_symbol_table(ASTNode* curr_param, SymbolTable* table,int* stack_pointer);
 int num_symbol_tables(ScopeManager* scope_manager);
