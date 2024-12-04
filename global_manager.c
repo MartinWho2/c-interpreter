@@ -303,7 +303,7 @@ int check_type_compatibility(full_type_t left, full_type_t right, const char* op
         }
         return 0;
     }
-    return left.type == right.type;
+    return 1;
 }
 
 ValueOrAddress eval_binary_op(GlobalManager* global_manager,ASTNode* binary_op) {
@@ -335,21 +335,24 @@ ValueOrAddress eval_binary_op(GlobalManager* global_manager,ASTNode* binary_op) 
                 int new_addr = size * val_left.value.value.i + val_right.value.value.i;
                 ret_value = (Value) {0, type_right, .value.i=new_addr};
             } else {
-                if (type_left.type == type_right.type) {
-                    ret_value = (Value) {0, type_left, 0};
-                    switch (type_left.type) {
-                        case NODE_INT:
-                            ret_value.value.i = val_left.value.value.i + val_right.value.value.i;
-                            break;
-                        case NODE_FLOAT:
-                            ret_value.value.f = val_left.value.value.f + val_right.value.value.f;
-                            break;
-                        case NODE_CHAR:
-                            ret_value.value.c = (char) (val_left.value.value.c + val_right.value.value.c);
-                            break;
-                    }
+                // Convert to float if either operand is a float
+                if (type_left.type == NODE_FLOAT || type_right.type == NODE_FLOAT) {
+                    float left_val = (type_left.type == NODE_INT) ? (float)val_left.value.value.i :
+                                     (type_left.type == NODE_CHAR) ? (float)val_left.value.value.c :
+                                     val_left.value.value.f;
+                    float right_val = (type_right.type == NODE_INT) ? (float)val_right.value.value.i :
+                                      (type_right.type == NODE_CHAR) ? (float)val_right.value.value.c :
+                                      val_right.value.value.f;
+
+                    ret_value = (Value) {0, (full_type_t) {NODE_FLOAT, 0}, .value.f = left_val + right_val};
                 } else {
-                    error_out(binary_op, "cannot add two values of different types");
+                    // If both are integers or chars
+                    int left_val = (type_left.type == NODE_INT) ? val_left.value.value.i :
+                                   val_left.value.value.c;
+                    int right_val = (type_right.type == NODE_INT) ? val_right.value.value.i :
+                                    val_right.value.value.c;
+
+                    ret_value = (Value) {0, (full_type_t) {NODE_INT, 0}, .value.i = left_val + right_val};
                 }
             }
             return (ValueOrAddress) {ret_value, 0, -1};
@@ -371,19 +374,24 @@ ValueOrAddress eval_binary_op(GlobalManager* global_manager,ASTNode* binary_op) 
                     ret_value = (Value) {0, type_left, .value.i = new_addr};
                 }
             } else {
-                ret_value = (Value) {0, type_left, 0};
-                switch (type_left.type) {
-                    case NODE_INT:
-                        ret_value.value.i = val_left.value.value.i - val_right.value.value.i;
-                        break;
-                    case NODE_FLOAT:
-                        ret_value.value.f = val_left.value.value.f - val_right.value.value.f;
-                        break;
-                    case NODE_CHAR:
-                        ret_value.value.c = (char) (val_left.value.value.c - val_right.value.value.c);
-                        break;
-                    default:
-                        error_out(binary_op, "Unsupported type for subtraction");
+                // Convert to float if either operand is a float
+                if (type_left.type == NODE_FLOAT || type_right.type == NODE_FLOAT) {
+                    float left_val = (type_left.type == NODE_INT) ? (float)val_left.value.value.i :
+                                     (type_left.type == NODE_CHAR) ? (float)val_left.value.value.c :
+                                     val_left.value.value.f;
+                    float right_val = (type_right.type == NODE_INT) ? (float)val_right.value.value.i :
+                                      (type_right.type == NODE_CHAR) ? (float)val_right.value.value.c :
+                                      val_right.value.value.f;
+
+                    ret_value = (Value) {0, (full_type_t) {NODE_FLOAT, 0}, .value.f = left_val - right_val};
+                } else {
+                    // If both are integers or chars
+                    int left_val = (type_left.type == NODE_INT) ? val_left.value.value.i :
+                                   val_left.value.value.c;
+                    int right_val = (type_right.type == NODE_INT) ? val_right.value.value.i :
+                                    val_right.value.value.c;
+
+                    ret_value = (Value) {0, (full_type_t) {NODE_INT, 0}, .value.i = left_val - right_val};
                 }
             }
             return (ValueOrAddress) {ret_value, 0, -1};
@@ -395,19 +403,24 @@ ValueOrAddress eval_binary_op(GlobalManager* global_manager,ASTNode* binary_op) 
             if (type_left.n_pointers > 0 || type_right.n_pointers > 0)
                 error_out(binary_op, "Cannot multiply pointers");
 
-            ret_value = (Value) {0, type_left, 0};
-            switch (type_left.type) {
-                case NODE_INT:
-                    ret_value.value.i = val_left.value.value.i * val_right.value.value.i;
-                    break;
-                case NODE_FLOAT:
-                    ret_value.value.f = val_left.value.value.f * val_right.value.value.f;
-                    break;
-                case NODE_CHAR:
-                    ret_value.value.c = (char) (val_left.value.value.c * val_right.value.value.c);
-                    break;
-                default:
-                    error_out(binary_op, "Unsupported type for multiplication");
+            // Convert to float if either operand is a float
+            if (type_left.type == NODE_FLOAT || type_right.type == NODE_FLOAT) {
+                float left_val = (type_left.type == NODE_INT) ? (float)val_left.value.value.i :
+                                 (type_left.type == NODE_CHAR) ? (float)val_left.value.value.c :
+                                 val_left.value.value.f;
+                float right_val = (type_right.type == NODE_INT) ? (float)val_right.value.value.i :
+                                  (type_right.type == NODE_CHAR) ? (float)val_right.value.value.c :
+                                  val_right.value.value.f;
+
+                ret_value = (Value) {0, (full_type_t) {NODE_FLOAT, 0}, .value.f = left_val * right_val};
+            } else {
+                // If both are integers or chars
+                int left_val = (type_left.type == NODE_INT) ? val_left.value.value.i :
+                               val_left.value.value.c;
+                int right_val = (type_right.type == NODE_INT) ? val_right.value.value.i :
+                                val_right.value.value.c;
+
+                ret_value = (Value) {0, (full_type_t) {NODE_INT, 0}, .value.i = left_val * right_val};
             }
             return (ValueOrAddress) {ret_value, 0, -1};
 
@@ -540,53 +553,51 @@ ValueOrAddress eval_binary_op(GlobalManager* global_manager,ASTNode* binary_op) 
                 error_out(binary_op, "Cannot compare pointers with these operators");
 
             ret_value = (Value) {0, (full_type_t) {NODE_INT, 0}, 0};
-            switch (type_left.type) {
-                case NODE_INT:
-                    switch (binary_op->data.binary.operator) {
-                        case NODE_GT:
-                            ret_value.value.i = val_left.value.value.i > val_right.value.value.i;
-                            break;
-                        case NODE_LT:
-                            ret_value.value.i = val_left.value.value.i < val_right.value.value.i;
-                            break;
-                        case NODE_GEQ:
-                            ret_value.value.i = val_left.value.value.i >= val_right.value.value.i;
-                            break;
-                        case NODE_LEQ:
-                            ret_value.value.i = val_left.value.value.i <= val_right.value.value.i;
-                            break;
-                    }
-                    break;
-                case NODE_FLOAT:
-                    switch (binary_op->data.binary.operator) {
-                        case NODE_GT:
-                            ret_value.value.i = val_left.value.value.f > val_right.value.value.f;
-                            break;
-                        case NODE_LT:
-                            ret_value.value.i = val_left.value.value.f < val_right.value.value.f;
-                            break;
-                        case NODE_GEQ:
-                            ret_value.value.i = val_left.value.value.f < val_right.value.value.f;
-                            break;
-                        case NODE_LEQ:
-                            ret_value.value.i = val_left.value.value.f <= val_right.value.value.f;
-                            break;
-                    }
-                case NODE_CHAR:
-                    switch (binary_op->data.binary.operator) {
-                        case NODE_GT:
-                            ret_value.value.i = val_left.value.value.f > val_right.value.value.f;
-                            break;
-                        case NODE_LT:
-                            ret_value.value.i = val_left.value.value.f < val_right.value.value.f;
-                            break;
-                        case NODE_GEQ:
-                            ret_value.value.i = val_left.value.value.f < val_right.value.value.f;
-                            break;
-                        case NODE_LEQ:
-                            ret_value.value.i = val_left.value.value.f <= val_right.value.value.f;
-                            break;
-                    }
+
+            // Convert to float if either operand is a float
+            if (type_left.type == NODE_FLOAT || type_right.type == NODE_FLOAT) {
+                float left_val = (type_left.type == NODE_INT) ? (float)val_left.value.value.i :
+                                 (type_left.type == NODE_CHAR) ? (float)val_left.value.value.c :
+                                 val_left.value.value.f;
+                float right_val = (type_right.type == NODE_INT) ? (float)val_right.value.value.i :
+                                  (type_right.type == NODE_CHAR) ? (float)val_right.value.value.c :
+                                  val_right.value.value.f;
+
+                switch (binary_op->data.binary.operator) {
+                    case NODE_GT:
+                        ret_value.value.i = left_val > right_val;
+                        break;
+                    case NODE_LT:
+                        ret_value.value.i = left_val < right_val;
+                        break;
+                    case NODE_GEQ:
+                        ret_value.value.i = left_val >= right_val;
+                        break;
+                    case NODE_LEQ:
+                        ret_value.value.i = left_val <= right_val;
+                        break;
+                }
+            } else {
+                // If both are integers or chars
+                int left_val = (type_left.type == NODE_INT) ? val_left.value.value.i :
+                               val_left.value.value.c;
+                int right_val = (type_right.type == NODE_INT) ? val_right.value.value.i :
+                                val_right.value.value.c;
+
+                switch (binary_op->data.binary.operator) {
+                    case NODE_GT:
+                        ret_value.value.i = left_val > right_val;
+                        break;
+                    case NODE_LT:
+                        ret_value.value.i = left_val < right_val;
+                        break;
+                    case NODE_GEQ:
+                        ret_value.value.i = left_val >= right_val;
+                        break;
+                    case NODE_LEQ:
+                        ret_value.value.i = left_val <= right_val;
+                        break;
+                }
             }
             return (ValueOrAddress){ret_value,0,-1};
     }

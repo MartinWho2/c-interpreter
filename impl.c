@@ -20,7 +20,7 @@ int main() {
     mark[i] = (i * 30);
     sum = sum + mark[i];
     average = avg(i + 1, mark);
-    if (average > (float)40) {
+    if (average > 40) {
       printf("%f\n", average);
     }
   }

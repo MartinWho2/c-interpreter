@@ -6,5 +6,7 @@ int main(){
     printf("%p == %p\n",&(c[3])-3, c);
     char* d[12] = {c};
     printf("%p == %p\n",&(d[3])-3, d);
+    printf("%f",10*(12.0-0.7));
+
     return 0;
 }
