@@ -7,6 +7,7 @@
 typedef enum {
     NODE_IDENTIFIER,
     NODE_CONSTANT,
+    NODE_STRING_LITERAL,
     NODE_ARRAY_ACCESS,
     NODE_FUNCTION_CALL,
     NODE_UNARY_OP,
@@ -93,9 +94,7 @@ typedef struct full_type_t{
 typedef struct Value {
     int is_constant;
     full_type_t type;
-    // ptr is only used for constant strings and should NEVER be used otherwise
-    // since pointers are represented by integers
-    union {int i; float f; char c; void* ptr;} value;
+    union {int i; float f; char c;} value;
 } Value;
 
 typedef struct ValueOrAddress {
@@ -231,6 +230,10 @@ typedef struct ASTNode {
             struct ASTNode *value;
         } return_stmt;
 
+        struct{
+            char* value;
+        } string;
+
         // For function def
         struct {
             struct full_type_t *type;
@@ -254,6 +257,7 @@ typedef struct ASTNode {
 // Function declarations for AST operations
 ASTNode* create_identifier(const char* name);
 ASTNode* create_constant(Value* value);
+ASTNode* create_string_literal(char* string);
 ASTNode* create_array_access(ASTNode* array, ASTNode* index);
 ASTNode* create_function_call(ASTNode* function, ASTNode* args);
 ASTNode* create_un_op(ASTNode* operand, un_operator operator);

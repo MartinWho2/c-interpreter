@@ -42,8 +42,8 @@ ASTNode* root = NULL;
 	full_type_t* full_type;
 }
 
-%token <value> CONSTANT STRING_LITERAL
-%token <string> IDENTIFIER  
+%token <value> CONSTANT
+%token <string> IDENTIFIER STRING_LITERAL
 %token <token> INC_OP DEC_OP LEFT_OP RIGHT_OP LE_OP GE_OP EQ_OP NE_OP AND_OP OR_OP
 %token <token> MUL_ASSIGN DIV_ASSIGN MOD_ASSIGN ADD_ASSIGN CHAR
 %token <token> SUB_ASSIGN LEFT_ASSIGN RIGHT_ASSIGN AND_ASSIGN
@@ -87,7 +87,7 @@ primary_expression
 	| CONSTANT
         {$$ = create_constant($1);}
 	| STRING_LITERAL
-        {$$ = create_constant($1);}
+        {$$ = create_string_literal($1);}
 	| '(' assignment_expression ')'
     	{$$ = $2;}
 	;

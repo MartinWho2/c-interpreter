@@ -14,10 +14,11 @@ FS			(f|F|l|L)
 void count();
 Value* parse_num(const char* text);
 Value* parse_float(const char* text);
-Value* parse_string(char* text);
+char* parse_string(char* text);
 Value* parse_float_or_int(const char* text);
 Value* parse_char(const char* text);
 extern int DEBUG_MAIN;
+char* unescape_string(const char* escaped_str, int original_length, int* out_len);
 
 
 %}
@@ -52,7 +53,7 @@ extern int DEBUG_MAIN;
 '(\\.|[^\\'])'	{ count(); yylval.value = parse_char(yytext); return(CONSTANT); }
 
 
-\"(\\.|[^\\"])*\"	{ count(); yylval.value = parse_string(yytext);/*THIS IS VERY BAD TODO CHANGE TO HAVE SAME STRINGS STORED ON STACK*/return(STRING_LITERAL); }
+\"(\\.|[^\\"])*\"	{ count(); yylval.string = parse_string(yytext);return(STRING_LITERAL); }
 
 ">>="			{ count(); return(RIGHT_ASSIGN); }
 "<<="			{ count(); return(LEFT_ASSIGN); }
@@ -179,14 +180,78 @@ Value* parse_float_or_int(const char* s){
 	}
 	return parse_num(s);
 }
-Value* parse_string(char* s){
-	Value* value = malloc(sizeof (Value));
-	full_type_t full_type = {NODE_CHAR,1};
-	value->type = full_type;
-	value->value.ptr = strdup(s+1);
-	((char*)(value->value.ptr))[strlen(s)-2] = '\0';
-	value->is_constant = 1;
-	return value;
+char* parse_string(char* s){
+	char* out = strdup(s+1);
+	int len = strlen(out);
+	out[len-1] = '\0';
+	int out_len = 0;
+	char* unescaped = unescape_string(out,len-1,&out_len);
+	free(out);
+	return unescaped;
+}
+char* unescape_string(const char* escaped_str, int original_length, int* out_len) {
+    // Allocate memory for the unescaped string (same length or potentially shorter)
+    char* unescaped_str = malloc(original_length + 1);
+    if (unescaped_str == NULL) {
+        return NULL;  // Memory allocation failed
+    }
+    int final_length = original_length;
+
+    size_t i = 0;  // Index for escaped string
+    size_t j = 0;  // Index for unescaped string
+
+    while (original_length > 0) {
+        if (escaped_str[i] == '\\') {
+            // Handle escape sequences
+            switch (escaped_str[i + 1]) {
+                case 'n':  // Newline
+                    unescaped_str[j++] = '\n';
+                    i += 2;
+                    break;
+                case 'r':  // Carriage return
+                    unescaped_str[j++] = '\r';
+                    i += 2;
+                    break;
+                case 't':  // Tab
+                    unescaped_str[j++] = '\t';
+                    i += 2;
+                    break;
+                case '0':  // Null terminator
+                    unescaped_str[j++] = '\0';
+                    i += 2;
+                    break;
+                case '\\':  // Backslash
+                    unescaped_str[j++] = '\\';
+                    i += 2;
+                    break;
+                case '"':  // Double quote
+                    unescaped_str[j++] = '"';
+                    i += 2;
+                    break;
+                case '\'':  // Single quote
+                    unescaped_str[j++] = '\'';
+                    i += 2;
+                    break;
+                default:
+                    // If it's not a recognized escape sequence,
+                    // just copy the backslash and the next character
+                    unescaped_str[j++] = escaped_str[i++];
+                    unescaped_str[j++] = escaped_str[i++];
+                    break;
+            }
+            final_length--;
+            original_length -= 2;
+        } else {
+            // Copy regular characters
+            unescaped_str[j++] = escaped_str[i++];
+            original_length--;
+        }
+    }
+
+    // Null-terminate the string
+    unescaped_str[j] = '\0';
+    *out_len = final_length;
+    return unescaped_str;
 }
 
 Value* parse_char(const char* s){

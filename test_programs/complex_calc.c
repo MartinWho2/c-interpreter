@@ -1,4 +1,3 @@
-#include <stdio.h>
 int complex_calculation(int a, int b) {
     int result = (a + b) * (a - b) / (a | b) & (a ^ b);
     return result;

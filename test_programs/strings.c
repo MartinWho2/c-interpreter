@@ -19,6 +19,7 @@ void reverse_string(char *str) {
     {
         while (start < end) {
             {
+                debug();
                 temp = str[start];
                 str[start] = str[end];
                 str[end] = temp;
@@ -40,13 +41,14 @@ int is_palindrome(char *str) {
 }
 
 int main() {
+    char* str2 = "1234567";
+
     char str1[16] = {'H', 'e', 'l', 'l', 'o', ',', ' ', 'W', 'o', 'r', 'l', 'd', '!', '\0'};
-    char* str2 = "racecar";
-    //char* palindromes[3] = {"racecar", "level", "madam"};
+    char* palindromes[3] = {"racecar", "level", "madam"};
     int i;
-    debug();
     printf("Original str1: %s\n", str2);
     reverse_string(str2);
+    debug();
     printf("Reversed str1: %s\n\n", str2);
     /*
     for (i = 0; i < 3; i++) {

@@ -1008,6 +1008,10 @@ ASTNode* execute_function(GlobalManager *globalManager,ASTNode *fun_def){
                 return curr_instr->data.return_stmt.value;
             case NODE_CAST:
                 eval_expr(globalManager,curr_instr);
+                break;
+            case NODE_STRING_LITERAL:
+                // we don't put it into stack memory since it is useless and could be big
+                break;
         }
     }
 }
@@ -1079,12 +1083,26 @@ Value *get_array_init_res(GlobalManager *globalManager,ASTNode *array_init, size
     int i = 0;
     while (array->type == NODE_INIT_LIST){
         current = array->data.arg_list.arg;
+        if (current->type == NODE_STRING_LITERAL)
+            error_out(array_init,"String literals are not allowed in array initialization");
         values[i++] = eval_expr(globalManager,current).value;
         array = array->data.arg_list.next;
     }
     values[i++] = eval_expr(globalManager,array).value;
     if (i != size){ fprintf(stderr,"wtf %d (i) != %zu (size) ?",i,size);exit(1);}
     return values;
+}
+Value init_string(GlobalManager *globalManager,ASTNode *string){
+    error_on_wrong_node(NODE_STRING_LITERAL,string->type,"get_array_init_res");
+    char* real_string = string->data.string.value;
+    int len = (int)strlen(real_string);
+    int sp = globalManager->memory_manager->stack_pointer;
+    int new_sp = sp + len+1;
+    globalManager->memory_manager->stack_pointer = new_sp;
+    increase_memory_if_needed(globalManager->memory_manager);
+    strcpy(globalManager->memory_manager->base_of_stack + sp,real_string);
+    Value val = {0,{NODE_CHAR,1},sp};
+    return val;
 }
 
 
@@ -1122,7 +1140,9 @@ ValueOrAddress eval_expr(GlobalManager *global_manager,ASTNode* ast_node){
             ValueOrAddress ret = {result,1,final_ptr};
             return ret;
         case NODE_ARRAY_INIT:
-            error_out(ast_node,"Array initialization has a special function");
+            error_out(ast_node,"Array initialization not possible for non-array");
+        case NODE_STRING_LITERAL:
+            return (ValueOrAddress){init_string(global_manager,ast_node),0,-1};
         case NODE_FUNCTION_CALL:
             char* fun_name = ast_node->data.function_call.function->data.identifier.name;
             if (strcmp(fun_name,"printf") == 0){
@@ -1246,70 +1266,6 @@ typedef struct {
     char** strings_middle;       // Strings between types
     int count;                   // Number of expected arguments
 } FormatParseResult;
-char* unescape_string(const char* escaped_str, int original_length, int* out_len) {
-    // Allocate memory for the unescaped string (same length or potentially shorter)
-    char* unescaped_str = malloc(original_length + 1);
-    if (unescaped_str == NULL) {
-        return NULL;  // Memory allocation failed
-    }
-    int final_length = original_length;
-
-    size_t i = 0;  // Index for escaped string
-    size_t j = 0;  // Index for unescaped string
-
-    while (original_length > 0) {
-        if (escaped_str[i] == '\\') {
-            // Handle escape sequences
-            switch (escaped_str[i + 1]) {
-                case 'n':  // Newline
-                    unescaped_str[j++] = '\n';
-                    i += 2;
-                    break;
-                case 'r':  // Carriage return
-                    unescaped_str[j++] = '\r';
-                    i += 2;
-                    break;
-                case 't':  // Tab
-                    unescaped_str[j++] = '\t';
-                    i += 2;
-                    break;
-                case '0':  // Null terminator
-                    unescaped_str[j++] = '\0';
-                    i += 2;
-                    break;
-                case '\\':  // Backslash
-                    unescaped_str[j++] = '\\';
-                    i += 2;
-                    break;
-                case '"':  // Double quote
-                    unescaped_str[j++] = '"';
-                    i += 2;
-                    break;
-                case '\'':  // Single quote
-                    unescaped_str[j++] = '\'';
-                    i += 2;
-                    break;
-                default:
-                    // If it's not a recognized escape sequence,
-                    // just copy the backslash and the next character
-                    unescaped_str[j++] = escaped_str[i++];
-                    unescaped_str[j++] = escaped_str[i++];
-                    break;
-            }
-            final_length--;
-            original_length -= 2;
-        } else {
-            // Copy regular characters
-            unescaped_str[j++] = escaped_str[i++];
-            original_length--;
-        }
-    }
-
-    // Null-terminate the string
-    unescaped_str[j] = '\0';
-    *out_len = final_length;
-    return unescaped_str;
-}
 
 // Function to parse format string
 FormatParseResult parse_printf_format(char* format) {
@@ -1369,17 +1325,16 @@ FormatParseResult parse_printf_format(char* format) {
 
             if (specifier_start == NULL) {
                 // No more format specifiers, save the rest as the last middle string
-                int final_len = 0;
-                result.strings_middle[middle_index] = unescape_string(current, strlen(current),&final_len);
-                result.strings_middle[middle_index][final_len] = '\0';
+                result.strings_middle[middle_index] = calloc(strlen(current) + 1,sizeof(char));
+                strcpy(result.strings_middle[middle_index],current);
                 break;
             }
 
             // Copy the text before the format specifier
             size_t prefix_len = specifier_start - current;
-            int final_len = 0;
-            result.strings_middle[middle_index] = unescape_string(current,prefix_len,&final_len);
-            result.strings_middle[middle_index][final_len] = '\0';
+            result.strings_middle[middle_index] = calloc(prefix_len + 1,sizeof(char));
+            strncpy(result.strings_middle[middle_index],current,prefix_len);
+            result.strings_middle[middle_index][prefix_len] = '\0';
             middle_index++;
 
             // Move past the %
@@ -1414,9 +1369,7 @@ FormatParseResult parse_printf_format(char* format) {
         }
     }else{
         result.strings_middle = calloc( 1,sizeof(char*));
-        int out_len = 0;
-        result.strings_middle[0] = unescape_string(format, strlen(format),&out_len);
-        result.strings_middle[0][out_len] = '\0';
+        result.strings_middle[0] = strdup(format);
     }
 
     return result;
@@ -1437,11 +1390,7 @@ int handle_printf_call(GlobalManager *globalManager,ValueOrAddress* args, int nu
         fprintf(stderr,"printf requires a string format as first element");
         exit(1);
     }
-    if (args[0].value.is_constant){
-        format = (char*)args[0].value.value.ptr;
-    }else{
-        format = get_raw_ptr_for_var(globalManager->memory_manager,args[0].value.value.i);
-    }
+    format = get_raw_ptr_for_var(globalManager->memory_manager,args[0].value.value.i);
 
     FormatParseResult printfFormat = parse_printf_format(format);
     MemoryManager *memory_manager = globalManager->memory_manager;

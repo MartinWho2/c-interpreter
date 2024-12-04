@@ -16,7 +16,7 @@ void bubble_sort(int *arr, int size) {
 }
 
 int main() {
-    int size = 200;
+    int size = 400;
     int numbers[size];
     int state = 0xabcdef;
     int mod = 0xdeadc0ed;
@@ -33,7 +33,6 @@ int main() {
         printf("%d ", numbers[i]);
     }
     printf("\n");
-    gg = 17;
 
     bubble_sort(numbers, size);
 

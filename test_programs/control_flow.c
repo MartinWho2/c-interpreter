@@ -8,7 +8,7 @@ int factorial(int n) {
 }
 
 int main() {
-    int x = 30;
+    int x = 31;
     int y = 0;
 
     if (x > 0) {
