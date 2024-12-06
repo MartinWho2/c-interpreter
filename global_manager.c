@@ -49,6 +49,7 @@ int count_function_defs(GlobalManager* global_manager){
 void register_all_functions(GlobalManager* global_manager) {
     ASTNode *root = global_manager->root;
     int num_functions = count_function_defs(global_manager);
+    char* names[num_functions];
     global_manager->n_funcs = num_functions;
     global_manager->function_defs = calloc(sizeof(functions_t *),num_functions);
     int counter = 0;
@@ -59,6 +60,13 @@ void register_all_functions(GlobalManager* global_manager) {
             functions_t *f = malloc(sizeof (functions_t ));
             f->func_def = curr;
             f->name = curr->data.function_def.name;
+            for (int i = 0; i < counter; ++i) {
+                if (strcmp(f->name,names[i]) == 0) {
+                    fprintf(stderr,"function named %s declared twice", f->name);
+                    exit(1);
+                }
+            }
+            names[counter] = strdup(f->name);
             global_manager->function_defs[counter++] = f;
         }
         root = root->data.arg_list.next;
@@ -68,6 +76,15 @@ void register_all_functions(GlobalManager* global_manager) {
         f->func_def = root;
         f->name = root->data.function_def.name;
         global_manager->function_defs[counter++] = f;
+        for (int i = 0; i < counter-1; ++i) {
+            if (strcmp(f->name,names[i]) == 0) {
+                fprintf(stderr,"function named %s declared twice", f->name);
+                exit(1);
+            }
+        }
+    }
+    for (int i = 0; i < counter-1; ++i) {
+        free(names[i]);
     }
     if (counter != num_functions){
         printf("WTFFFFFF %d != %d",counter,num_functions);
