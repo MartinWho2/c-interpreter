@@ -1,10 +1,14 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <limits.h>
 #include "global_manager.h"
 #define VOID_VALUE (Value){0,{NODE_VOID,0},0}
 
 int DEBUG = 0;
+int SHOW_MEM = 1;
+char* LAST_INTERACTIVE_CMD = NULL;
+int PRINT_FUNC_CALL = 0;
 
 ASTNode RETURN_VOID =  (ASTNode){NODE_RETURN,.data.return_stmt.value=NULL};
 
@@ -107,7 +111,11 @@ void call_function_total(GlobalManager *global_manager,ASTNode* fun_def, ASTNode
     ScopeManager * scope_manager = global_manager->scope_manager;
     enter_new_scope(global_manager, fun_call, NULL, 1);
     SymbolTable * from_args = construct_symbol_table_for_function_call(fun_def,memory_manager);
+    if (PRINT_FUNC_CALL)
+        printf("[CALL] Calling %s(",fun_def->data.function_def.name);
     insert_arguments_from_func_call(global_manager,from_args,fun_def,fun_call);
+    if (PRINT_FUNC_CALL)
+        printf(")\n");
     call_function(scope_manager,from_args);
 }
 
@@ -138,10 +146,11 @@ ValueOrAddress return_function_total(GlobalManager* global_manager,ASTNode* retu
     }
     exit_scope_from_func_call(global_manager);
     if (ret_value.value.type.type != return_type.type || ret_value.value.type.n_pointers != return_type.n_pointers){
-        error_out(return_value,"Returning wrong type from function\n");
-        print_type(ret_value.value.type,1);
-        printf("instead of ");
-        print_type(return_type,1);
+        printf("\n[ERROR] Returning wrong type from function : ");
+        print_type(ret_value.value.type,0);
+        printf(" instead of ");
+        print_type(return_type,0);
+        printf("\n");
         exit(1);
     }
     return ret_value;
@@ -198,8 +207,6 @@ ValueOrAddress eval_unary_op(GlobalManager *global_manager, ASTNode* unary_op){
             return eval_expr(global_manager,unary_op->data.unary.operand);
         case NODE_MINUS:
             res = eval_expr(global_manager,unary_op->data.unary.operand);
-            fprintf(stderr,"DEBUG");
-            print_val_or_addr(res);
             new_value = (Value){res.value.is_constant,res.value.type,0};
             if (res.value.type.n_pointers > 0){
                 error_out(unary_op, "Cannot take the negative value of a pointer");
@@ -856,7 +863,40 @@ static inline void declare(GlobalManager* globalManager, ASTNode* curr_instr){
                                            *curr_instr->data.declaration.type);
     }
 }
-
+void debug(GlobalManager* globalManager){
+    while (1){
+        char buf[200] = {0};
+        char* s = fgets(buf,199,stdin);
+        if (s == NULL) {
+            break;
+        }
+        // remove \n
+        buf[strlen(buf)-1] = 0;
+        if (buf[0] == 0 && strlen(LAST_INTERACTIVE_CMD) > 0)
+            strcpy(buf,LAST_INTERACTIVE_CMD);
+        if (buf[0] == 'p') {
+            print_global_manager_state(globalManager);
+        }else if (buf[0] == 'c'|| buf[0] == 'n') {
+            strcpy(LAST_INTERACTIVE_CMD,buf);
+            break;
+        }else if (buf[0] == 'g' && strlen(buf) > 2){
+            printf("%s = ",buf+2);
+            print_value(get_value(globalManager, buf + 2), '\n');
+        }else if (buf[0] == 'q'){
+            destroy_global_manager(globalManager);
+            free(LAST_INTERACTIVE_CMD);
+            exit(1);
+        }else{
+            printf("\"%s\" is not a valid command\n",buf);
+            printf("p: print global state\n");
+            printf("g <var>: get value of variable\n");
+            printf("c: continue\n");
+            printf("n: next (same as continue)\n");
+            printf("q: quit\n");
+        }
+        strcpy(LAST_INTERACTIVE_CMD,buf);
+    }
+}
 ASTNode* execute_function(GlobalManager *globalManager,ASTNode *fun_def){
     error_on_wrong_node(NODE_FUNCTION_DEF,fun_def->type,"execute_function");
     ASTNode* body = fun_def->data.function_def.body->data.compound_stmt.block;
@@ -878,13 +918,11 @@ ASTNode* execute_function(GlobalManager *globalManager,ASTNode *fun_def){
         if (DEBUG){
             printf("\n\nCURR INSTR \n=============\n");
             print_ast(curr_instr,0);
-            printf("?=============\n");
-            print_global_manager_state(globalManager);
-            printf("--------------------\n\n");
+            printf("=============\n");
         }
-        if (DEBUG)
-            sleep(1);
-
+        if (DEBUG){
+            debug(globalManager);
+        }
 
         switch (curr_instr->type){
             case NODE_IDENTIFIER:
@@ -1068,20 +1106,22 @@ void execute_globals(GlobalManager* globalManager){
     }
 }
 
-void execute_code(GlobalManager* globalManager, int debug){
+void execute_code(GlobalManager* globalManager, int debug, int should_print_memory,int print_func_call){
     DEBUG = debug;
+    SHOW_MEM = should_print_memory;
+    LAST_INTERACTIVE_CMD = malloc(200);
+    LAST_INTERACTIVE_CMD[0] = 0;
+    PRINT_FUNC_CALL = print_func_call;
     execute_globals(globalManager);
     ASTNode *main = find_function(globalManager,"main");
     ASTNode main_id = (ASTNode){NODE_IDENTIFIER,.data.identifier.name="main",0,0};
     ASTNode func_call = {NODE_FUNCTION_CALL,.data.function_call={&main_id,NULL},0,0};
     call_function_total(globalManager,main,&func_call);
-    if (DEBUG)
-        print_global_manager_state(globalManager);
     ASTNode * ret = execute_function(globalManager,main);
     ValueOrAddress final_result = return_function_total(globalManager,ret,*main->data.function_def.type);
     printf("\n[EXITING]\nProcess returned with given value: (");
     print_type(final_result.value.type,0);
-
+    free(LAST_INTERACTIVE_CMD);
     if (final_result.value.type.n_pointers > 0){
         printf(") %d\n",final_result.value.value.i);
         return;
@@ -1193,7 +1233,8 @@ ValueOrAddress eval_expr(GlobalManager *global_manager,ASTNode* ast_node){
                 sleep(time.value.value.i);
                 return (ValueOrAddress){VOID_VALUE,0,-1};
             }else if (strcmp(fun_name,"debug") == 0){
-                print_global_manager_state(global_manager);
+                printf("[DEBUGGING] Please enter command\n");
+                debug(global_manager);
                 return (ValueOrAddress){VOID_VALUE,0,-1};
             }else if (strcmp(fun_name,"sizeof") == 0){
                 size_t size = list_size(ast_node->data.function_call.args);
@@ -1201,7 +1242,21 @@ ValueOrAddress eval_expr(GlobalManager *global_manager,ASTNode* ast_node){
                 ValueOrAddress value = eval_expr(global_manager,ast_node->data.function_call.args);
                 Value ret = {0,{NODE_INT,0},type_size(&value.value.type)};
                 return (ValueOrAddress){ret,0,-1};
-
+            }else if(strcmp(fun_name,"input") == 0){
+                size_t size = list_size(ast_node->data.function_call.args);
+                if (size != 0){ error_out(ast_node,"input function requires no input");}
+                char buf[20] = {0};
+                char* s = fgets(buf,19,stdin);
+                if (s == NULL){
+                    fprintf(stderr,"[ERROR] Could not read input\n");
+                    exit(1);
+                }
+                int value =  strtol(buf,NULL,10);
+                if (value > INT_MAX || value < INT_MIN){
+                    fprintf(stderr,"[ERROR] Input value is too big or too small\n");
+                    exit(1);
+                }
+                return (ValueOrAddress){{0, {NODE_INT, 0}, value},0,-1};
             }
             ASTNode * func_def = find_function(global_manager,fun_name);
             call_function_total(global_manager,func_def,ast_node);
@@ -1580,6 +1635,11 @@ void insert_arguments_from_func_call(GlobalManager * global_manager,SymbolTable*
             finished = 1;
         }
         ValueOrAddress arg_evaluated = eval_expr(global_manager,curr_arg);
+        if (PRINT_FUNC_CALL){
+            print_value(arg_evaluated.value, ' ');
+            if (!finished)
+                printf(",");
+        }
         full_type_t param_type = *curr_param->data.param_declaration.type;
         if ( param_type.type != arg_evaluated.value.type.type || param_type.n_pointers != arg_evaluated.value.type.n_pointers ){
             error_out(func_call, "Function called with wrong type of parameter");
@@ -1734,7 +1794,7 @@ void print_memory(GlobalManager* global_manager) {
         return;
     }
 
-    printf("  ║   🔢 Bytes: %d                 ║\n", stack_pointer);
+    printf("  ║   🔢 Bytes: %08d         ║\n", stack_pointer);
     printf("  ║   📊 Memory Contents:         ║\n");
 
     printf("  ║   ");
@@ -1760,7 +1820,8 @@ void print_global_manager_state(GlobalManager* global_manager){
     printf("  ╠═══════════════════════════════╣\n");
     print_symbol_tables(global_manager->scope_manager);
     print_current_flow(global_manager->flow_manager);
-    print_memory(global_manager);
+    if (SHOW_MEM)
+        print_memory(global_manager);
     printf("  ╚══════════════════════════════╝\n");
     fflush(stdout);
 }

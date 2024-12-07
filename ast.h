@@ -284,7 +284,8 @@ void print_ast(ASTNode* node, int indent);
 void print_node_type(NodeType node_type);
 void print_type(full_type_t full_type, int indent);
 void print_val_or_addr(ValueOrAddress v);
-void print_value(Value v);
+void print_value(Value v, char last);
+int parse_from_string(const char* input_string);
 
 int type_size(full_type_t* full_type);
 int is_void_value(Value* v);

@@ -44,11 +44,11 @@ void destroy_memory_manager(MemoryManager* memory_manager){
     free(memory_manager);
 }
 
-void increase_memory(MemoryManager* memory_manager){
-    memory_manager->size_memory *= 2;
+void increase_memory(MemoryManager* memory_manager, int scale_factor){
+    memory_manager->size_memory *= scale_factor;
     void* new_base = realloc(memory_manager->base_of_stack,memory_manager->size_memory);
     if (new_base == NULL){
-        fprintf(stderr,"[Error] in allocating a bigger stack for your program");
+        fprintf(stderr,"[Error] Not enough memory...");
         exit(1);
     }
     memory_manager->base_of_stack = new_base;
@@ -57,19 +57,20 @@ void increase_memory(MemoryManager* memory_manager){
 // BE CAREFUL THAT BASE OF STACK MIGHT BE CHANGED AFTER THIS CALL, SO DON'T SAVE IT BEFORE
 void increase_memory_if_needed(MemoryManager* memoryManager){
     if (memoryManager->stack_pointer >= 0.9 * memoryManager->size_memory)
-        increase_memory(memoryManager);
+        increase_memory(memoryManager,
+                        memoryManager->stack_pointer / memoryManager->size_memory + 1);
 }
 
 int create_buffer(MemoryManager *memory_manager,full_type_t* full_type, int n_elems){
     int size = type_size(full_type) * n_elems;
-    if (size < 0){
+    if (size < 0 || n_elems < 0){
         fprintf(stderr,"[ERROR] Buffer wayyy too big, OVERFLOW...");
         exit(1);
     }
     int buffer_address = memory_manager->stack_pointer;
     memory_manager->stack_pointer += size;
-    while (memory_manager->stack_pointer >= memory_manager->size_memory){
-        increase_memory(memory_manager);
+    if (memory_manager->stack_pointer >= memory_manager->size_memory){
+        increase_memory(memory_manager,memory_manager->stack_pointer / memory_manager->size_memory + 1);
     }
     return buffer_address;
 }
@@ -77,9 +78,10 @@ int create_buffer(MemoryManager *memory_manager,full_type_t* full_type, int n_el
 int declare_new_variable_in_memory(MemoryManager * memory_manager, full_type_t* full_type){
     int size = type_size(full_type);
     int address_for_variable = memory_manager->stack_pointer;
-    memory_manager->stack_pointer = memory_manager->stack_pointer + size;
-    while (memory_manager->stack_pointer >= memory_manager->size_memory){
-        increase_memory(memory_manager);
+    memory_manager->stack_pointer += size;
+    if (memory_manager->stack_pointer >= memory_manager->size_memory){
+        increase_memory(memory_manager,2);
+        address_for_variable = memory_manager->stack_pointer - size;
     }
     return address_for_variable;
 }

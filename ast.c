@@ -470,6 +470,7 @@ void print_ast(ASTNode *node, int indent) {
             print_indent(indent + 1);
             printf("Type:\n");
             print_type(*(node->data.declaration.type), indent + 2);
+            printf("\n");
             if (node->data.declaration.value) {
                 print_indent(indent + 1);
                 printf("Value:\n");
@@ -495,6 +496,7 @@ void print_ast(ASTNode *node, int indent) {
             print_indent(indent + 1);
             printf("Type:\n");
             print_type(*(node->data.param_declaration.type), indent + 2);
+            printf("\n");
             print_indent(indent + 1);
             printf("Name:\n");
             print_ast(node->data.param_declaration.name, indent + 2);
@@ -572,6 +574,7 @@ void print_ast(ASTNode *node, int indent) {
             print_indent(indent + 1);
             printf("Return Type:\n");
             print_type(*(node->data.function_def.type), indent + 2);
+            printf("\n");
             if (node->data.function_def.parameters) {
                 print_indent(indent + 1);
                 printf("Parameters:\n");
@@ -594,10 +597,11 @@ void print_ast(ASTNode *node, int indent) {
             print_ast(node->data.cast.operand, indent + 1);
             printf("To Type :\n");
             print_type(*node->data.cast.cast_type, indent + 1);
+            printf("\n");
             break;
         case NODE_STRING_LITERAL:
             print_indent(indent);
-            printf("String literal : \"%s\"", node->data.string.value);
+            printf("String literal : \"%s\"\n", node->data.string.value);
             break;
         default:
             print_indent(indent);
@@ -694,32 +698,33 @@ void print_node_type(NodeType node_type) {
     }
 }
 
-void print_value(Value v) {
-    printf("Value :\n  is_const=%d\n", v.is_constant);
-    print_type(v.type, 1);
-    print_indent(1);
+void print_value(Value v, char last) {
     if (v.type.n_pointers > 0) {
-        printf("val=%d\n", v.value.i);
+        printf(" %d (", v.value.i);
+        print_type(v.type,0);
+        printf(")%c",last);
         return;
     }
     switch (v.type.type) {
         case NODE_INT:
-            printf("val=%d\n", v.value.i);
+            printf(" %d (", v.value.i);
             break;
         case NODE_FLOAT:
-            printf("val=%f\n", v.value.f);
+            printf(" %f (", v.value.f);
             break;
         case NODE_VOID:
-            printf("val=None\n");
-            break;
+            printf("None%c",last);
+            return;
         case NODE_CHAR:
-            printf("val='%c'\n", v.value.c);
+            printf("'%c' (", v.value.c);
             break;
     }
+    print_type(v.type,0);
+    printf(")%c",last);
 }
 
 void print_val_or_addr(ValueOrAddress v) {
-    print_value(v.value);
+    print_value(v.value, '\n');
     if (v.has_address) {
         printf("  addr=%d\n", v.address);
     } else {
@@ -798,6 +803,6 @@ void error_on_wrong_node(NodeType expected, NodeType actual, const char *functio
 }
 
 void error_out(ASTNode *current_node, const char *error_message) {
-    fprintf(stderr, "[ERROR] %s (l. %d)\n", error_message, current_node->line_number);
+    fprintf(stderr, "[ERROR] %s \n", error_message);
     exit(1);
 }

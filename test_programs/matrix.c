@@ -42,15 +42,16 @@ int matrix_determinant(int *matrix, int size) {
 }
 
 int main() {
-    int matrix1[4] = {1, 2, 3, 4};
-    int matrix2[4] = {5, 6, 7, 8};
-    int result[4];
-    matrix_multiply(matrix1, matrix2, result, 2, 2, 2);
+    int matrix1[9] = {1, 2, 3, 4,5,6,7,8,9};
+    int matrix2[9] = {10,11, 12, 13, 14, 15, 16, 17, 18};
+    int result[9];
+    matrix_multiply(matrix1, matrix2, result, 3, 3, 3);
 
     printf("Matrix Multiplication Result:\n");
-    printf("%d %d\n%d %d\n", result[0], result[1], result[2], result[3]);
+    printf("%d %d %d\n%d %d %d\n%d %d %d\n", result[0], result[1], result[2], result[3],result[4],result[5],result[6],
+           result[7],result[8]);
 
-    int det = matrix_determinant(matrix1, 2);
+    int det = matrix_determinant(matrix1, 3);
     printf("Determinant of matrix1: %d\n", det);
 
     return 0;

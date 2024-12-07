@@ -44,7 +44,7 @@ int main() {
     char* str2 = "1234567";
 
     char str1[16] = {'H', 'e', 'l', 'l', 'o', ',', ' ', 'W', 'o', 'r', 'l', 'd', '!', '\0'};
-    char* palindromes[3] = {"racecar", "level", "madam"};
+    //char* palindromes[3] = {"racecar", "level", "madam"};
     int i;
     printf("Original str1: %s\n", str2);
     reverse_string(str2);

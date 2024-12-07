@@ -7,6 +7,7 @@ FS			(f|F|l|L)
 %{
 #include <stdio.h>
 #include <string.h>
+#include <limits.h>
 #include "ast.h"
 #include "y.tab.h"
 #define ECHO   do { if (DEBUG_MAIN) fwrite(yytext, yyleng, 1, yyout); } while (0);
@@ -27,7 +28,7 @@ char* unescape_string(const char* escaped_str, int original_length, int* out_len
 %%
 "/*"			{ comment(); }
 "//" 		 	{ while (input() != '\n'); count(); }
-
+"#"             { while (input() != '\n'); count(); }
 "break"			{ count(); return(BREAK); }
 "char"			{ count(); return(CHAR); }
 "continue"		{ count(); return(CONTINUE); }
@@ -162,7 +163,13 @@ Value* parse_num(const char* s){
 	Value* value = malloc(sizeof (Value));
 	full_type_t full_type = {NODE_INT,0};
 	value->type = full_type;
-	value->value.i = strtol(s,NULL,0);
+	long l = strtol(s,NULL,0);
+	// check if l overflows when converting to int
+	if (l > INT_MAX || l < INT_MIN){
+        fprintf(stderr, "Error: constant %s is too large for type int\n", s);
+        exit(1);
+    }
+	value->value.i = l;
 	value->is_constant = 1;
 	return value;
 }

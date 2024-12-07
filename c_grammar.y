@@ -2,13 +2,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "ast.h"
-
+extern int DEBUG_MAIN;
 extern int yylex(void);
 extern char* yytext;
 extern int column;
 void yyerror(const char *s){
-	fflush(stdout);
-	printf("\n%*s\n%*s\n", column, "^", column, s);
+    if (DEBUG_MAIN){
+    	fflush(stdout);
+    	printf("\n%*s\n%*s\n", column, "^", column, s);
+    }
 }
 void modify_types(ASTNode* node, full_type_t * type){
 	if (node == NULL){

@@ -3,17 +3,18 @@
 // Symbol table entry structure
 typedef struct SymbolEntry {
     char* name;               // Variable/function name
-    full_type_t type;          // Type of the symbol
+    full_type_t type;         // Type of the symbol
     int address;              // Stored value
-    struct SymbolEntry* next; // Next entry for hash collision handling
+    struct SymbolEntry* next; // hash collision handling
 } SymbolEntry;
 
 // Symbol table structure (hash table)
 typedef struct {
-    int size;                 // Size of the hash table
-    int count;                // Number of entries
-    SymbolEntry** entries;    // Array of symbol entry pointers
+    int size;
+    int count;
+    SymbolEntry** entries;
 } SymbolTable;
+
 typedef struct SymbolTablesList{
     SymbolTable* local_vars;
     struct SymbolTablesList* prev;
@@ -22,8 +23,8 @@ typedef struct SymbolTablesList{
 
 // Scope manager structure
 typedef struct {
-    SymbolTable* global_vars;   // Global variables
-    SymbolTablesList* symbol_tables;  // Previous scopes symbol table
+    SymbolTable* global_vars;
+    SymbolTablesList* symbol_tables;
 } ScopeManager;
 
 void print_symbol_type(full_type_t *t);

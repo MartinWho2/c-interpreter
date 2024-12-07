@@ -29,7 +29,7 @@ void declare_new_variable_without_value(GlobalManager* global_manager, const cha
 void call_function_total(GlobalManager *global_manager,ASTNode* fun_def, ASTNode* fun_call);
 ValueOrAddress return_function_total(GlobalManager* global_manager,ASTNode* return_value, full_type_t return_type);
 void register_all_functions(GlobalManager* global_manager);
-void execute_code(GlobalManager* globalManager, int debug);
+void execute_code(GlobalManager* globalManager, int debug, int show_mem, int print_func_call);
 static inline void declare(GlobalManager* globalManager, ASTNode* curr_instr);
 void declare_new_array_without_value(GlobalManager* globalManager, const char* name, full_type_t type, int n_elems);
 void declare_new_array_with_constant_value(GlobalManager* globalManager, const char* name, full_type_t type, int n_elems, Value value);

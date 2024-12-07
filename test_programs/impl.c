@@ -8,11 +8,9 @@ float avg(int count, int *value) {
   return (float) (total / count);
 }
 
-
-
 int main() {
   int count, i, sum;
-  int mark[4];
+  int mark[4] = {0};
   float average;
   count = 4;
   sum = 0;

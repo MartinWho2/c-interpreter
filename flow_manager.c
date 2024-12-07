@@ -189,4 +189,5 @@ void print_current_flow(FlowManager* flow_manager) {
     if (flow_manager->stack_pointer == 0) {
         printf("  ║   🔷 No Flow Elements         ║\n");
     }
+    printf("  ╠═══════════════════════════════╣\n");
 }

@@ -16,10 +16,10 @@ void bubble_sort(int *arr, int size) {
 }
 
 int main() {
-    int size = 400;
+    int size = 100;
     int numbers[size];
-    int state = 0xabcdef;
-    int mod = 0xdeadc0ed;
+    int state = 0x9abcdef;
+    int mod = 0x1337c0e1;
     int a = 3;
     int b = 0x12345678;
     for (int j = 0; j < size; ++j) {
