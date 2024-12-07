@@ -3,11 +3,7 @@ int add(int a, int b) {
 }
 
 int main() {
-    int x = 5;
-    int y = 7;
-    printf("x = %d\n",x);
-    printf("y = %d\n",y);
-    int result = add(x, y);
-    printf("x + y = %d\n",result);
+    int x = input();
+    debug();
     return result;
 }

@@ -1251,7 +1251,7 @@ ValueOrAddress eval_expr(GlobalManager *global_manager,ASTNode* ast_node){
                     fprintf(stderr,"[ERROR] Could not read input\n");
                     exit(1);
                 }
-                int value =  strtol(buf,NULL,10);
+                int value =  strtol(buf,NULL,0);
                 if (value > INT_MAX || value < INT_MIN){
                     fprintf(stderr,"[ERROR] Input value is too big or too small\n");
                     exit(1);
