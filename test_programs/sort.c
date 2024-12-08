@@ -1,3 +1,4 @@
+#include <stdio.h>
 void swap(int *a, int *b) {
     int temp = *a;
     *a = *b;
@@ -16,7 +17,7 @@ void bubble_sort(int *arr, int size) {
 }
 
 int main() {
-    int size = 100;
+    int size = 1000;
     int numbers[size];
     int state = 0x9abcdef;
     int mod = 0x1337c0e1;

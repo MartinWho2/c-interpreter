@@ -335,7 +335,10 @@ ValueOrAddress eval_binary_op(GlobalManager* global_manager,ASTNode* binary_op) 
     ASTNode *left_operand = binary_op->data.binary.left;
     ASTNode *right_operand = binary_op->data.binary.right;
     ValueOrAddress val_left = eval_expr(global_manager, left_operand);
-    ValueOrAddress val_right = eval_expr(global_manager, right_operand);
+    ValueOrAddress val_right;
+    if (binary_op->data.binary.operator != NODE_LOGICAL_AND && binary_op->data.binary.operator != NODE_LOGICAL_OR)
+        // do not evaluate because of lazy operation
+        val_right = eval_expr(global_manager, right_operand);
     full_type_t type_left = val_left.value.type, type_right = val_right.value.type;
     Value ret_value;
     if ((type_right.type == NODE_VOID && type_right.n_pointers == 0) ||
@@ -532,14 +535,19 @@ ValueOrAddress eval_binary_op(GlobalManager* global_manager,ASTNode* binary_op) 
         case NODE_LOGICAL_AND:
         case NODE_LOGICAL_OR:
             // Convert values to boolean first
-            int left_bool = val_left.value.value.i != 0;
-            int right_bool = val_right.value.value.i != 0;
+            int left_bool = is_zero(&val_left) ? 0 : 1;
+            if (!left_bool && binary_op->data.binary.operator == NODE_LOGICAL_AND){
+                return (ValueOrAddress){0,(full_type_t){NODE_INT,0},0,
+                                        0,-1};
+            }
+            if (left_bool && binary_op->data.binary.operator == NODE_LOGICAL_OR) {
+                return (ValueOrAddress){0,(full_type_t){NODE_INT,0},1,
+                                        0,-1};
+            }
+            val_right = eval_expr(global_manager, right_operand);
+            int right_bool = is_zero(&val_right) ? 0 : 1;
 
-            ret_value = (Value) {0, (full_type_t) {NODE_INT, 0}, 0};
-            if (binary_op->data.binary.operator == NODE_LOGICAL_AND)
-                ret_value.value.i = left_bool && right_bool;
-            else
-                ret_value.value.i = left_bool || right_bool;
+            ret_value = (Value) {0, (full_type_t) {NODE_INT, 0}, right_bool};
             return (ValueOrAddress) {ret_value, 0, -1};
 
         case NODE_IS_EQ:
@@ -1222,8 +1230,8 @@ ValueOrAddress eval_expr(GlobalManager *global_manager,ASTNode* ast_node){
                     list_elem = list_elem->data.arg_list.next;
                 }
                 args[size-1] = eval_expr(global_manager,list_elem);
-                handle_printf_call(global_manager,args,size);
-                return (ValueOrAddress){VOID_VALUE,0,-1};
+                int written = handle_printf_call(global_manager,args,size);
+                return (ValueOrAddress){{0,{NODE_INT,0},written},0,-1};
             }else if (strcmp(fun_name,"sleep") == 0){
                 size_t size = list_size(ast_node->data.function_call.args);
                 if (size != 1){ error_out(ast_node,"sleep function requires one int input");}
@@ -1551,7 +1559,7 @@ int handle_printf_call(GlobalManager *globalManager,ValueOrAddress* args, int nu
                     fprintf(stderr,"Popping too many elements from printf, got out of stack");
                     exit(1);
                 }
-                printf("%c",chars[--saved_sp]);
+                written += printf("%c",chars[--saved_sp]);
                 break;
             case FORMAT_PTR:
                 if (saved_sp < 4) {
@@ -1583,13 +1591,13 @@ int handle_printf_call(GlobalManager *globalManager,ValueOrAddress* args, int nu
     }
     fflush(stdout);
     if (printfFormat.strings_middle[printfFormat.count])
-        printf(printfFormat.strings_middle[printfFormat.count]);
+        written += printf(printfFormat.strings_middle[printfFormat.count]);
     for (int i = 0; i <= printfFormat.count; ++i) {
         free(printfFormat.strings_middle[i]);
     }
     free(printfFormat.strings_middle);
     free(printfFormat.types);
-    return 0;
+    return written;
 }
 
 SymbolTable * construct_symbol_table_for_function_call(ASTNode* function_def,MemoryManager* memory_manager){
