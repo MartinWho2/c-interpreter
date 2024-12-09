@@ -9,7 +9,7 @@ int DEBUG = 0;
 int SHOW_MEM = 1;
 char* LAST_INTERACTIVE_CMD = NULL;
 int PRINT_FUNC_CALL = 0;
-
+int BREAK_NEXT = 0;
 ASTNode RETURN_VOID =  (ASTNode){NODE_RETURN,.data.return_stmt.value=NULL};
 
 GlobalManager * create_global_manager(ASTNode* root){
@@ -871,7 +871,10 @@ static inline void declare(GlobalManager* globalManager, ASTNode* curr_instr){
                                            *curr_instr->data.declaration.type);
     }
 }
-void debug(GlobalManager* globalManager){
+void debug(GlobalManager* globalManager, ASTNode* curr_instr){
+    printf("CURRENT INSTRUCTION\n");
+    print_ast(curr_instr,0);
+    printf("[DEBUGGING] Please enter command\n");
     while (1){
         char buf[200] = {0};
         char* s = fgets(buf,199,stdin);
@@ -884,12 +887,17 @@ void debug(GlobalManager* globalManager){
             strcpy(buf,LAST_INTERACTIVE_CMD);
         if (buf[0] == 'p') {
             print_global_manager_state(globalManager);
-        }else if (buf[0] == 'c'|| buf[0] == 'n') {
+        }else if (buf[0] == 'c') {
             strcpy(LAST_INTERACTIVE_CMD,buf);
             break;
+        }else if (buf[0] == 'n') {
+            strcpy(LAST_INTERACTIVE_CMD,buf);
+            BREAK_NEXT = 1;
+            break;
         }else if (buf[0] == 'g' && strlen(buf) > 2){
-            printf("%s = ",buf+2);
-            print_value(get_value(globalManager, buf + 2), '\n');
+                printf("%s = ",buf+2);
+                print_value(get_value(globalManager, buf + 2), '\n');
+
         }else if (buf[0] == 'q'){
             destroy_global_manager(globalManager);
             free(LAST_INTERACTIVE_CMD);
@@ -899,7 +907,7 @@ void debug(GlobalManager* globalManager){
             printf("p: print global state\n");
             printf("g <var>: get value of variable\n");
             printf("c: continue\n");
-            printf("n: next (same as continue)\n");
+            printf("n: next\n");
             printf("q: quit\n");
         }
         strcpy(LAST_INTERACTIVE_CMD,buf);
@@ -928,8 +936,9 @@ ASTNode* execute_function(GlobalManager *globalManager,ASTNode *fun_def){
             print_ast(curr_instr,0);
             printf("=============\n");
         }
-        if (DEBUG){
-            debug(globalManager);
+        if (DEBUG || BREAK_NEXT){
+            BREAK_NEXT = 0;
+            debug(globalManager,curr_instr);
         }
 
         switch (curr_instr->type){
@@ -1241,8 +1250,7 @@ ValueOrAddress eval_expr(GlobalManager *global_manager,ASTNode* ast_node){
                 sleep(time.value.value.i);
                 return (ValueOrAddress){VOID_VALUE,0,-1};
             }else if (strcmp(fun_name,"debug") == 0){
-                printf("[DEBUGGING] Please enter command\n");
-                debug(global_manager);
+                BREAK_NEXT = 1;
                 return (ValueOrAddress){VOID_VALUE,0,-1};
             }else if (strcmp(fun_name,"sizeof") == 0){
                 size_t size = list_size(ast_node->data.function_call.args);
