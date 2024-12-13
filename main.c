@@ -41,7 +41,6 @@ int main(int argc, char *argv[]) {
             printf("--debug: Opens the debug window before every instruction\n");
             printf("--no-mem: Do not print memory state while debugging (set this if you have big buffers)\n");
             printf("--print-func-call: Print function calls \n");
-            printf("Warning: all commands are only available in DEBUG mode\n");
             return 1;
         }else{
             printf("Unknown argument %s\n",argv[i]);
@@ -88,11 +87,4 @@ int main(int argc, char *argv[]) {
     }
 
     return result;
-}
-
-
-bool is_declaration_array(ASTNode *declaration) {
-    error_on_wrong_node(NODE_DECLARATION, declaration->type, "is_declaration_array");
-
-    return declaration->data.declaration.name->type == NODE_ARRAY_ACCESS;
 }

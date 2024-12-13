@@ -10,7 +10,7 @@ int main(){
         }else {
             x = x / 2;
         }
-            printf("%d\n", x);
+        printf("x = %d\n", x);
     }
     return 12;
 }

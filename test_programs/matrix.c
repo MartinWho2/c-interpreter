@@ -1,3 +1,4 @@
+#include <stdio.h>
 void matrix_multiply(int *a, int *b, int *result, int rows_a, int cols_a, int cols_b) {
     int i, j, k;
 

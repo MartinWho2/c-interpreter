@@ -929,6 +929,8 @@ ASTNode* execute_function(GlobalManager *globalManager,ASTNode *fun_def){
             if (should_return){
                 return return_void(fun_def);
             }
+            if (curr_instr_list == NULL)
+                continue;
         }
         curr_instr =  curr_instr_list->type == NODE_INSTRUCTION_LIST? curr_instr_list->data.arg_list.arg: curr_instr_list;
         if (DEBUG){
