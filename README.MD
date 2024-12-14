@@ -7,8 +7,8 @@ I chose to do it in C, using bison and flex.
 # Run the program
 To run the program, first compile the parser using the following commands :
 ```sh
-flex lexer.l
-bison -d c_grammar.y
+lex lexer.l
+yacc -d c_grammar.y -v
 gcc lex.yy.c y.tab.c ast.c symbol_table.c memory_manager.c flow_manager.c global_manager.c main.c -O3 -o "exe_cute" -I .
 ```
 
